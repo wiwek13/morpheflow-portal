@@ -10375,3 +10375,75 @@ window.closeMicroGHelpModal = closeMicroGHelpModal;
 window.detectPatchConflicts = detectPatchConflicts;
 window.resolvePatchConflict = resolvePatchConflict;
 
+// ---------------------------------------------------------------------------
+// Quick Upload & Patch Engine (Home Overview)
+// ---------------------------------------------------------------------------
+function parseApkFilenameMetadata(filename) {
+  if (!filename || typeof filename !== 'string') return { suggestedPkg: '', version: '', friendlyName: '' };
+  const clean = filename.replace(/\.apk$/i, '').trim();
+
+  // Check if filename has a version suffix separated by _, -, or space
+  const verMatch = clean.match(/^(.+?)[_\-\s]+(v?\d+(?:\.\d+)*(?:[a-zA-Z0-9.-]*))$/i);
+  let base = clean;
+  let version = '';
+
+  if (verMatch) {
+    base = verMatch[1].trim();
+    version = verMatch[2].trim();
+  }
+
+  // Determine if base is a reverse-domain package name (e.g. com.example.app)
+  const isPkg = /^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(base);
+  if (isPkg) {
+    return {
+      suggestedPkg: base,
+      version: version,
+      friendlyName: ''
+    };
+  }
+
+  return {
+    suggestedPkg: '',
+    version: version,
+    friendlyName: base
+  };
+}
+
+function matchCatalogAppByFilename(filename, catalog) {
+  if (!filename || !catalog) return null;
+  const meta = parseApkFilenameMetadata(filename);
+
+  // 1. Exact package match
+  if (meta.suggestedPkg && catalog[meta.suggestedPkg]) {
+    return {
+      pkg: meta.suggestedPkg,
+      name: catalog[meta.suggestedPkg].name || meta.suggestedPkg,
+      iconUrl: catalog[meta.suggestedPkg].icon_url,
+      repos: catalog[meta.suggestedPkg].supported_repos || []
+    };
+  }
+
+  // 2. Friendly name or package match against catalog
+  const targetName = (meta.friendlyName || meta.suggestedPkg || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!targetName) return null;
+
+  for (const [pkg, item] of Object.entries(catalog)) {
+    const itemName = (item.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const pkgClean = pkg.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (itemName === targetName || pkgClean === targetName || (targetName.includes(itemName) && itemName.length > 3) || (itemName.includes(targetName) && targetName.length > 3)) {
+      return {
+        pkg,
+        name: item.name || pkg,
+        iconUrl: item.icon_url,
+        repos: item.supported_repos || []
+      };
+    }
+  }
+
+  return null;
+}
+
+window.parseApkFilenameMetadata = parseApkFilenameMetadata;
+window.matchCatalogAppByFilename = matchCatalogAppByFilename;
+
+
