@@ -95,3 +95,17 @@ test('Quick Upload: matchCatalogAppByFilename resolves package from friendly nam
   const matchNull = app.matchCatalogAppByFilename('random_unknown_file.apk', mockCatalog);
   assert.equal(matchNull, null);
 });
+
+test('Quick Upload: index.html and morphe.css contain Home Upload button and modal markup', () => {
+  const html = fs.readFileSync(path.join(ROOT_DIR, 'web/frontend/index.html'), 'utf8');
+  assert.ok(html.includes('id="btn-home-upload-patch"'), 'Missing #btn-home-upload-patch button in index.html');
+  assert.ok(html.includes('id="modal-quick-upload-patch"'), 'Missing #modal-quick-upload-patch modal in index.html');
+  assert.ok(html.includes('id="quick-upload-dropzone"'), 'Missing #quick-upload-dropzone');
+  assert.ok(html.includes('id="quick-upload-detected-card"'), 'Missing #quick-upload-detected-card');
+  assert.ok(html.includes('id="quick-upload-progress-container"'), 'Missing #quick-upload-progress-container');
+  assert.ok(html.includes('id="btn-submit-quick-upload-patch"'), 'Missing #btn-submit-quick-upload-patch');
+
+  const css = fs.readFileSync(path.join(ROOT_DIR, 'web/frontend/css/morphe.css'), 'utf8');
+  assert.ok(css.includes('.quick-dropzone'), 'Missing .quick-dropzone styles in morphe.css');
+});
+
