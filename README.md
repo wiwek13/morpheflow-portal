@@ -4,7 +4,7 @@
   <p><strong>A Cloud-Native Edge Control Plane, Pure Patch Studio & Automated Build Pipeline for Android Packages</strong></p>
 
   <p>
-    <a href="https://github.com/wiwek13/MorpheFlow/releases"><img src="https://img.shields.io/badge/version-v2.4.1-6366f1?style=for-the-badge&logo=android&logoColor=white" alt="Version 2.4.1"></a>
+    <a href="https://github.com/wiwek13/morpheflow-portal/releases"><img src="https://img.shields.io/badge/version-v2.4.4-6366f1?style=for-the-badge&logo=android&logoColor=white" alt="Version 2.4.4"></a>
     <a href="https://workers.cloudflare.com"><img src="https://img.shields.io/badge/Cloudflare_Workers-Edge_D1-f38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
     <a href="https://github.com/ImranR98/Obtainium"><img src="https://img.shields.io/badge/Obtainium-1--Click_Sync-10b981?style=for-the-badge&logo=googleplay&logoColor=white" alt="Obtainium Integration"></a>
     <a href="https://www.virustotal.com"><img src="https://img.shields.io/badge/VirusTotal-Automated_Auditing-3b82f6?style=for-the-badge&logo=virustotal&logoColor=white" alt="VirusTotal Auditing"></a>
@@ -24,6 +24,41 @@
 **MorpheFlow** is an open-source, self-hosted edge management portal and automated continuous-integration pipeline for patching, deterministically signing, and distributing Android applications.
 
 Built as a next-generation evolution of [AutoMorph](https://github.com/holjab/AutoMorph) and powered by [Morphe Desktop](https://morphe.software), MorpheFlow transitions Android bytecode patching from heavy, local servers into a sleek, serverless edge architecture running **100% within the Cloudflare Free Tier** with zero VPS maintenance and zero credit card required.
+
+---
+
+## 🚦 New User? Start Here in 3 Steps
+
+MorpheFlow gives you a personal, automated Android patching studio that compiles your favorite apps (YouTube ReVanced, Reddit, Instagram, Twitter, etc.) with custom patches and keeps them updated automatically on your phone.
+
+### Choose Your Path:
+| Path | Best For | Requirement | Experience |
+|---|---|---|---|
+| **🌐 Path 1: Cloudflare Edge (Recommended)** | Most users | Free Cloudflare + Free GitHub | Zero server costs, zero VPS, personal web dashboard + cloud builder |
+| **🏠 Path 2: Homelab / Docker** | Self-hosters | Docker / Linux / Unraid | Local FastAPI server on `:8080` with background workers |
+| **📱 Path 3: Android Obtainium Client** | Mobile install & updates | Android phone | 1-Click sync into Obtainium for background APK auto-updates |
+
+---
+
+### ⚡ 3-Minute Quickstart (Path 1 · Free Serverless Cloud)
+
+1. **Clone this repository & run the deployer**:
+   ```bash
+   git clone https://github.com/wiwek13/morpheflow-portal.git
+   cd morpheflow-portal
+   ./deploy.sh          # macOS / Linux (or .\deploy.ps1 on Windows)
+   ```
+   *The script automatically provisions your free Cloudflare D1 database, configures a private GitHub builder repository for your releases, deploys the edge portal, and prints your master password.*
+
+2. **Open your web dashboard & patch any app**:
+   - Navigate to `https://morpheflow.<subdomain>.workers.dev` and log in.
+   - **Upload & Patch**: Drag-and-drop any base `.apk` or paste a direct download URL directly from the Home screen.
+   - **Or Provision from Catalog**: Select from 1,354+ community apps (YouTube, Reddit, Instagram, etc.) with automated conflict linting.
+   - Hit **Run Pipeline** — your GitHub Actions runner compiles and signs the APK in ~2-3 minutes.
+
+3. **Install & auto-update on your phone**:
+   - Open your dashboard on your phone and tap **1-Click Sync to Obtainium**.
+   - Your device installs the clean, VirusTotal-audited APK and checks for automatic background updates!
 
 ---
 
@@ -158,8 +193,8 @@ Deploy the entire serverless portal and configure the cloud runner in under 2 mi
 #### 2. Run the 1-Click Deployer
 ```bash
 # Clone the repository
-git clone https://github.com/wiwek13/MorpheFlow.git
-cd MorpheFlow
+git clone https://github.com/wiwek13/morpheflow-portal.git
+cd morpheflow-portal
 
 # Run the automated deployer
 ./deploy.sh          # macOS / Linux
@@ -183,8 +218,8 @@ If you prefer self-hosting on your own homelab (Unraid, Proxmox, TrueNAS) or an 
 
 1. **Clone & Setup Environment**:
    ```bash
-   git clone https://github.com/wiwek13/MorpheFlow.git
-   cd MorpheFlow
+   git clone https://github.com/wiwek13/morpheflow-portal.git
+   cd morpheflow-portal
    cp example.env .env
    ```
 2. **Configure Remote Access & Tunnels**:
