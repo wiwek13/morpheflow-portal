@@ -70,6 +70,9 @@ Built as a next-generation evolution of [AutoMorph](https://github.com/holjab/Au
 
 ## ⚡ Key Features
 
+- **⚡ Direct Home "Upload & Patch" (0-Configuration)**:
+  - Drag-and-drop or select any clean base `.apk` binary straight from the Home Operations Queue.
+  - Automatically matches against the 1,354-app Community Catalog, auto-provisions the application, streams upload chunks with real-time progress bars, and immediately initiates the compilation build pipeline with a single click.
 - **🌐 Serverless Cloudflare Edge Architecture (100% Free)**:
   - Runs natively on Cloudflare Workers with **Cloudflare D1** (serverless distributed SQLite) and **Workers Static Assets**.
   - Isolate memoization and `db.batch()` execution ensures sub-millisecond edge response times with zero cold start overhead.

@@ -12,8 +12,9 @@ Welcome to the **MorpheFlow** user manual! This guide provides a comprehensive t
 
 - [1. Operations Console & Live Telemetry](#1-operations-console--live-telemetry)
   - [1.1 Real-Time Operations Queue](#11-real-time-operations-queue)
-  - [1.2 SemVer 2.0 Version Analysis](#12-semver-20-version-analysis)
-  - [1.3 Automated VirusTotal Security Audits](#13-automated-virustotal-security-audits)
+  - [1.2 Direct Home "Upload & Patch" Flow](#12-direct-home-upload--patch-flow)
+  - [1.3 SemVer 2.0 Version Analysis](#13-semver-20-version-analysis)
+  - [1.4 Automated VirusTotal Security Audits](#14-automated-virustotal-security-audits)
 - [2. App Provisioning & Pure Patch Studio](#2-app-provisioning--pure-patch-studio)
   - [2.1 Provision App Wizard](#21-provision-app-wizard)
   - [2.2 Pure Patch Studio (Drawer Interface)](#22-pure-patch-studio-drawer-interface)
@@ -40,13 +41,20 @@ The main MorpheFlow dashboard displays all configured target applications as int
 * **Execution Mutex**: Shows active execution locks, duration, and parallel workers.
 * **Direct Actions**: Trigger immediate builds, configure patches, or download compiled APK binaries.
 
-### 1.2 SemVer 2.0 Version Analysis
+### 1.2 Direct Home "Upload & Patch" Flow
+For the fastest possible workflow without manually navigating menus:
+1. Click the prominent **Upload & Patch** button in the Operations Queue header (or drag-and-drop any `.apk` file into the modal).
+2. MorpheFlow analyzes the filename and cross-references the 1,354-app Community Catalog client-side to instantly detect the app name, icon, and recommended patch set.
+3. The binary streams to `/api/upload/apk` with real-time percentage and MB progress indicators.
+4. MorpheFlow auto-provisions the package if new, dispatches the build runner, and transitions to the live console.
+
+### 1.3 SemVer 2.0 Version Analysis
 Each app card displays a high-visibility version matrix:
 * **Recommended (Patches)**: The target version explicitly certified and tested by patch bundle authors.
 * **Installed Base**: The version currently compiled, signed, and ready for download.
 * **Target Version**: Dynamic status classifying whether an update is available (`Update Available`), installed (`Up to Date`), or building.
 
-### 1.3 Automated VirusTotal Security Audits
+### 1.4 Automated VirusTotal Security Audits
 Every compiled APK has its SHA-256 hash calculated automatically:
 * Cards feature a green security shield with a verdict (e.g. `VT: 0/72 Clean`).
 * Clicking the badge opens the official VirusTotal analysis report in a new tab.
