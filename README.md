@@ -8,9 +8,14 @@
     <a href="https://workers.cloudflare.com"><img src="https://img.shields.io/badge/Cloudflare_Workers-Edge_D1-f38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
     <a href="https://github.com/ImranR98/Obtainium"><img src="https://img.shields.io/badge/Obtainium-1--Click_Sync-10b981?style=for-the-badge&logo=googleplay&logoColor=white" alt="Obtainium Integration"></a>
     <a href="https://www.virustotal.com"><img src="https://img.shields.io/badge/VirusTotal-Automated_Auditing-3b82f6?style=for-the-badge&logo=virustotal&logoColor=white" alt="VirusTotal Auditing"></a>
+    <a href="#-legal-disclaimer--educational-use"><img src="https://img.shields.io/badge/Purpose-Educational_%26_Research-yellow?style=for-the-badge" alt="Educational Purpose Only"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-gray?style=for-the-badge" alt="License MIT"></a>
   </p>
 </div>
+
+> [!IMPORTANT]
+> **Educational & Research Purposes Only**  
+> MorpheFlow is an open-source automation utility and edge management console developed strictly for **educational, security research, interoperability, and personal backup purposes**. MorpheFlow does **not** host, pirate, distribute, or link to any copyrighted APK binaries or proprietary intellectual property. All bytecode patching operations are executed in the user's own isolated environment using publicly available patch definitions. Users are solely responsible for ensuring compliance with all applicable local laws, intellectual property rights, and third-party Terms of Service.
 
 ---
 
@@ -226,6 +231,29 @@ MorpheFlow stands on the shoulders of incredible open-source projects and commun
 * **[goopdl](https://github.com/Villoh/goopdl) by Villoh**: Fast, automated package downloads directly from the Google Play Store.
 * **[Inotia00 & ReVanced Extended](https://github.com/inotia00)**: For extended patch sets, microg compatibility components, and community support.
 * **Team Vanced**: In memory of the pioneers who originally demonstrated the potential of client-side Android enhancement.
+
+---
+
+## ⚖️ Legal Disclaimer & Educational Use
+
+### 1. Educational & Interoperability Research
+MorpheFlow is designed, developed, and distributed solely for **educational, computer science research, and software interoperability evaluation**. Its primary purpose is to demonstrate serverless edge computing on Cloudflare Workers, distributed relational state management via Cloudflare D1, and modular Android bytecode analysis.
+
+### 2. No Distribution of Copyrighted Material
+* This repository and the MorpheFlow edge console do **not** contain, distribute, host, mirror, or repackage any copyrighted, proprietary Android applications (`.apk` or `.dex` files).
+* MorpheFlow does **not** host any central repository of pre-patched or cracked applications.
+* Any downloading of original base packages is performed solely on the client machine or via the user's private runner from publicly accessible distribution endpoints as instructed by the user.
+
+### 3. Private Runner Recommendation
+> [!CAUTION]
+> **Always Keep Cloud Builder Repositories Private**:  
+> When using the GitHub Actions Cloud Runner deployment, your target build repository **must be configured as a PRIVATE repository**. Publishing releases containing copyrighted APK binaries to a public repository may violate third-party intellectual property rights and GitHub's Terms of Service. MorpheFlow's automated deployer (`deploy.sh` / `deploy-cf.cjs`) configures private repositories by default.
+
+### 4. Trademark Attribution
+All product names, trademarks, registered trademarks, and logos mentioned in this project (including but not limited to Android, Google, Google Play, YouTube, Reddit, Proton, and others) belong to their respective copyright holders. Reference to these trademarks is strictly for identification and interoperability compatibility purposes, and does not imply any affiliation, endorsement, or sponsorship.
+
+### 5. Limitation of Liability
+The authors and contributors of MorpheFlow assume no liability or responsibility for any misuse of this software, data loss, account suspension, or violation of third-party Terms of Service resulting from the use of this software. The end user accepts full legal responsibility for any actions taken using MorpheFlow.
 
 ---
 

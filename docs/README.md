@@ -4,6 +4,9 @@ Welcome to the **MorpheFlow** documentation hub! MorpheFlow is a modern, cloud-n
 
 Whether deploying serverless on Cloudflare Workers edge (100% free) or self-hosting on your own hardware / cloud VPS via Docker, you'll find comprehensive setup and operational guides below.
 
+> [!NOTE]
+> **Educational & Research Notice**: MorpheFlow is strictly intended for educational, computer science research, and personal interoperability purposes. The project does not distribute or host proprietary APK binaries.
+
 ---
 
 ## 📚 Guides & Documentation
