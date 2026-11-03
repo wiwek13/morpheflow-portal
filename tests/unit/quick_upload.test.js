@@ -157,7 +157,7 @@ test('Quick Upload: controller manages modal lifecycle, file selection, and UI t
   // 1. Open Modal
   app.openQuickUploadModal();
   const modalEl = app._domElements.get('modal-quick-upload-patch');
-  assert.equal(modalEl.style.display, 'flex');
+  assert.ok(modalEl.classList.contains('open'), 'Modal must have class open when opened');
 
   // 2. Process file selection
   const mockFile = {
@@ -199,7 +199,7 @@ test('Quick Upload: controller manages modal lifecycle, file selection, and UI t
 
   // 4. Close Modal
   app.closeQuickUploadModal();
-  assert.equal(modalEl.style.display, 'none');
+  assert.equal(modalEl.classList.contains('open'), false, 'Modal must not have class open when closed');
 });
 
 test('Quick Upload: submitQuickUploadAndPatch uploads binary and dispatches build handoff', async () => {

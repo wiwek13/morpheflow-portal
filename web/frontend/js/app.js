@@ -301,6 +301,7 @@ function setupEventListeners() {
   });
 
   // Monolith and Quick Action Navigations
+  document.getElementById('btn-home-upload-patch')?.addEventListener('click', () => openQuickUploadModal());
   document.getElementById('btn-quick-store')?.addEventListener('click', () => switchTab('store'));
   document.getElementById('btn-overview-provision-launch')?.addEventListener('click', () => switchTab('store'));
   document.getElementById('btn-quick-new-app')?.addEventListener('click', () => switchTab('store'));
@@ -10453,7 +10454,7 @@ function openQuickUploadModal() {
   const modal = document.getElementById('modal-quick-upload-patch');
   if (!modal) return;
   resetQuickUploadFile();
-  modal.style.display = 'flex';
+  modal.classList.add('open');
 
   const dropzone = document.getElementById('quick-upload-dropzone');
   if (dropzone && !dropzone.dataset.hasDropListeners) {
@@ -10476,7 +10477,7 @@ function openQuickUploadModal() {
 function closeQuickUploadModal(e) {
   if (e && e.target !== e.currentTarget && e.currentTarget.id === 'modal-quick-upload-patch') return;
   const modal = document.getElementById('modal-quick-upload-patch');
-  if (modal) modal.style.display = 'none';
+  if (modal) modal.classList.remove('open');
   resetQuickUploadFile();
 }
 
