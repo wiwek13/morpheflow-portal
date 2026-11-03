@@ -28,6 +28,7 @@ function loadFrontendApp() {
         textContent: '',
         value: '',
         disabled: false,
+        appendChild: () => {},
         addEventListener: () => {},
         click: () => {}
       });
@@ -41,7 +42,19 @@ function loadFrontendApp() {
       getElementById: (id) => getOrCreateMockEl(id),
       querySelector: () => null,
       querySelectorAll: () => [],
-      addEventListener: () => {}
+      addEventListener: () => {},
+      createElement: () => ({
+        style: {},
+        classList: { add: () => {}, remove: () => {} },
+        appendChild: () => {},
+        remove: () => {}
+      }),
+      body: { appendChild: () => {} }
+    },
+    FormData: class MockFormData {
+      constructor() { this.data = new Map(); }
+      append(k, v) { this.data.set(k, v); }
+      get(k) { return this.data.get(k); }
     },
     localStorage: { getItem: () => null, setItem: () => {} },
     navigator: { userAgent: 'NodeTest' },
@@ -188,5 +201,47 @@ test('Quick Upload: controller manages modal lifecycle, file selection, and UI t
   app.closeQuickUploadModal();
   assert.equal(modalEl.style.display, 'none');
 });
+
+test('Quick Upload: submitQuickUploadAndPatch uploads binary and dispatches build handoff', async () => {
+  const app = loadFrontendApp();
+  assert.equal(typeof app.submitQuickUploadAndPatch, 'function', 'submitQuickUploadAndPatch must be defined');
+
+  let uploadedUrl = null;
+  let dispatchedPkg = null;
+  let addedAppPayload = null;
+
+  // Mock uploadApkWithProgress
+  app.window.uploadApkWithProgress = async (url, formData, onProgress) => {
+    uploadedUrl = url;
+    onProgress({ percent: 50, loadedMb: '20.0', totalMb: '40.0' });
+    onProgress({ percent: 100, loadedMb: '40.0', totalMb: '40.0' });
+    return { status: 'success', base_apk_url: 'https://example.com/base.apk' };
+  };
+
+  // Mock runSingleAppPatch
+  app.window.runSingleAppPatch = async (pkg, skipPrompt) => {
+    dispatchedPkg = pkg;
+  };
+
+  // Mock fetch for /api/config/app
+  app.window.fetch = async (url, opts) => {
+    if (url === '/api/config/app') {
+      addedAppPayload = JSON.parse(opts.body);
+      return { ok: true, json: async () => ({ status: 'success' }) };
+    }
+    return { ok: true, json: async () => ({}) };
+  };
+
+  const mockFile = { name: 'com.reddit.frontpage_v2024.44.0.apk', size: 40 * 1024 * 1024 };
+  app.processQuickUploadFile(mockFile);
+
+  await app.submitQuickUploadAndPatch();
+
+  assert.equal(uploadedUrl, '/api/upload/apk?package=com.reddit.frontpage');
+  assert.equal(dispatchedPkg, 'com.reddit.frontpage');
+  assert.ok(addedAppPayload);
+  assert.equal(addedAppPayload.package, 'com.reddit.frontpage');
+});
+
 
 

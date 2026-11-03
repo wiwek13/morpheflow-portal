@@ -10549,11 +10549,119 @@ function processQuickUploadFile(file) {
   if (submitBtn) submitBtn.disabled = false;
 }
 
+async function submitQuickUploadAndPatch() {
+  if (!currentQuickUploadFile || !currentQuickUploadPkg) return;
+
+  const pkg = currentQuickUploadPkg;
+  const file = currentQuickUploadFile;
+  const submitBtn = document.getElementById('btn-submit-quick-upload-patch');
+  const progressContainer = document.getElementById('quick-upload-progress-container');
+  const progressBar = document.getElementById('quick-upload-progress-bar');
+  const progressPercent = document.getElementById('quick-upload-progress-percent');
+  const progressBytes = document.getElementById('quick-upload-progress-bytes');
+  const progressFilename = document.getElementById('quick-upload-progress-filename');
+  const progressStatus = document.getElementById('quick-upload-progress-status');
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span class="live-pulse-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-base); margin-right: 0.375rem; animation: pulse 1s infinite;"></span><span>Uploading…</span>`;
+  }
+
+  if (progressContainer) progressContainer.style.display = 'block';
+  if (progressFilename) progressFilename.textContent = file.name;
+  if (progressStatus) progressStatus.textContent = 'Uploading Base APK…';
+  if (progressBar) {
+    progressBar.style.width = '0%';
+    progressBar.classList.remove('complete');
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('package', pkg);
+    formData.append('apk', file);
+
+    // 1. Upload Base APK with live progress
+    const uploadFn = (typeof uploadApkWithProgress === 'function')
+      ? uploadApkWithProgress
+      : (typeof window !== 'undefined' && window.uploadApkWithProgress)
+        ? window.uploadApkWithProgress
+        : null;
+
+    if (!uploadFn) throw new Error('uploadApkWithProgress function unavailable');
+
+    await uploadFn(
+      `/api/upload/apk?package=${encodeURIComponent(pkg)}`,
+      formData,
+      (progress) => {
+        if (progressBar) progressBar.style.width = `${progress.percent}%`;
+        if (progressPercent) progressPercent.textContent = `${progress.percent}%`;
+        if (progressBytes) progressBytes.textContent = `${progress.loadedMb} / ${progress.totalMb} MB`;
+        if (progress.percent >= 100) {
+          if (progressStatus) progressStatus.textContent = 'Verifying & Saving APK…';
+          if (progressBar) progressBar.classList.add('complete');
+        }
+      }
+    );
+
+    // 2. Ensure package is configured in state
+    if (!state.configuredApps) state.configuredApps = [];
+    let appConfig = state.configuredApps.find(a => (a.package || a.package_name) === pkg);
+    if (!appConfig) {
+      const catalog = (typeof window !== 'undefined' && window.morpheCatalogData) ? window.morpheCatalogData : {};
+      const catItem = catalog[pkg];
+      appConfig = {
+        package: pkg,
+        package_name: pkg,
+        name: catItem?.name || pkg,
+        enabled: true,
+        repos: catItem?.supported_repos || ['MorpheApp/morphe-patches']
+      };
+      state.configuredApps.push(appConfig);
+      try {
+        await fetch('/api/config/app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(appConfig)
+        });
+      } catch (e) {
+        console.warn('Could not auto-register package:', e);
+      }
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(`APK uploaded! Starting build for ${appConfig.name || pkg}…`, 'success');
+    }
+    closeQuickUploadModal();
+
+    // 3. Immediately trigger build runner and open live console
+    const runFn = (typeof runSingleAppPatch === 'function')
+      ? runSingleAppPatch
+      : (typeof window !== 'undefined' && window.runSingleAppPatch)
+        ? window.runSingleAppPatch
+        : null;
+
+    if (runFn) {
+      await runFn(pkg, true);
+    }
+    if (typeof loadOverviewData === 'function') loadOverviewData();
+  } catch (err) {
+    if (typeof showToast === 'function') {
+      showToast(`Upload failed: ${err.message}`, 'error');
+    }
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<span>Retry Upload</span>`;
+    }
+  }
+}
+
 window.openQuickUploadModal = openQuickUploadModal;
 window.closeQuickUploadModal = closeQuickUploadModal;
 window.resetQuickUploadFile = resetQuickUploadFile;
 window.handleQuickUploadFileSelected = handleQuickUploadFileSelected;
 window.processQuickUploadFile = processQuickUploadFile;
+window.submitQuickUploadAndPatch = submitQuickUploadAndPatch;
+
 
 
 
