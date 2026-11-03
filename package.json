@@ -1,6 +1,6 @@
 {
   "name": "morpheflow",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "description": "MorpheFlow edge management portal and build distribution on Cloudflare Workers",
   "type": "module",
   "scripts": {

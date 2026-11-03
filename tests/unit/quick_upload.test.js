@@ -21,7 +21,16 @@ function loadFrontendApp() {
           classes: new Set(),
           add(c) { this.classes.add(c); },
           remove(c) { this.classes.delete(c); },
-          contains(c) { return this.classes.has(c); }
+          contains(c) { return this.classes.has(c); },
+          toggle(c, force) {
+            if (force !== undefined) {
+              if (force) this.classes.add(c);
+              else this.classes.delete(c);
+            } else {
+              if (this.classes.has(c)) this.classes.delete(c);
+              else this.classes.add(c);
+            }
+          }
         },
         dataset: {},
         innerHTML: '',
@@ -30,7 +39,8 @@ function loadFrontendApp() {
         disabled: false,
         appendChild: () => {},
         addEventListener: () => {},
-        click: () => {}
+        click: () => {},
+        focus: () => {}
       });
     }
     return domElements.get(id);
@@ -58,6 +68,7 @@ function loadFrontendApp() {
     },
     localStorage: { getItem: () => null, setItem: () => {} },
     navigator: { userAgent: 'NodeTest' },
+    URL: globalThis.URL,
     console,
     setTimeout,
     setInterval,
@@ -242,6 +253,103 @@ test('Quick Upload: submitQuickUploadAndPatch uploads binary and dispatches buil
   assert.ok(addedAppPayload);
   assert.equal(addedAppPayload.package, 'com.reddit.frontpage');
 });
+
+test('Quick Upload: extractApkFilenameFromUrl extracts valid filename from multiple URL patterns', () => {
+  const app = loadFrontendApp();
+  assert.equal(typeof app.extractApkFilenameFromUrl, 'function', 'extractApkFilenameFromUrl must be defined');
+
+  // Standard GitHub release link
+  const fn1 = app.extractApkFilenameFromUrl('https://github.com/wiwek13/AutoMorph/releases/download/base-apks/ch.protonvpn.android_v5.20.57.0.apk?download=true');
+  assert.equal(fn1, 'ch.protonvpn.android_v5.20.57.0.apk');
+
+  // URL encoded spaces/version
+  const fn2 = app.extractApkFilenameFromUrl('https://cdn.example.com/files/Reddit%20v2024.44.0.apk#hash');
+  assert.equal(fn2, 'Reddit v2024.44.0.apk');
+
+  // Direct APK link
+  const fn3 = app.extractApkFilenameFromUrl('https://mirror.example.org/apks/com.google.android.youtube.apk');
+  assert.equal(fn3, 'com.google.android.youtube.apk');
+
+  // Query parameter with package fallback
+  const fn4 = app.extractApkFilenameFromUrl('https://store.example.com/download.php?pkg=com.instagram.android&v=1.0');
+  assert.equal(fn4, 'com.instagram.android.apk');
+});
+
+test('Quick Upload: direct download URL tab switching, detection, and build handoff', async () => {
+  const app = loadFrontendApp();
+  assert.equal(typeof app.switchQuickUploadTab, 'function', 'switchQuickUploadTab must be defined');
+  assert.equal(typeof app.detectQuickUploadUrl, 'function', 'detectQuickUploadUrl must be defined');
+
+  // 1. Switch to URL mode
+  app.switchQuickUploadTab('url');
+  const fileSection = app._domElements.get('quick-upload-file-section');
+  const urlSection = app._domElements.get('quick-upload-url-section');
+  assert.equal(fileSection.style.display, 'none');
+  assert.equal(urlSection.style.display, 'block');
+
+  // 2. Set URL and detect app
+  app.window.morpheCatalogData = {
+    'com.reddit.frontpage': {
+      name: 'Reddit',
+      icon_url: 'https://example.com/reddit.png'
+    }
+  };
+
+  const urlInput = app._domElements.get('quick-upload-url-input');
+  urlInput.value = 'https://github.com/wiwek13/AutoMorph/releases/download/base-apks/com.reddit.frontpage_v2024.44.0.apk';
+
+  app.detectQuickUploadUrl();
+
+  const detectedCard = app._domElements.get('quick-upload-detected-card');
+  assert.equal(detectedCard.style.display, 'block');
+
+  const nameEl = app._domElements.get('quick-upload-app-name');
+  assert.equal(nameEl.textContent, 'Reddit');
+
+  const pkgEl = app._domElements.get('quick-upload-app-pkg');
+  assert.equal(pkgEl.textContent, 'com.reddit.frontpage');
+
+  const sizeEl = app._domElements.get('quick-upload-file-size');
+  assert.equal(sizeEl.textContent, 'Direct Cloud URL');
+
+  const submitBtn = app._domElements.get('btn-submit-quick-upload-patch');
+  assert.equal(submitBtn.disabled, false);
+
+  // 3. Submit with direct URL
+  let configuredBaseApkUrl = null;
+  let dispatchedPkg = null;
+
+  app.window.fetch = async (url, opts) => {
+    if (url === '/api/config/app/base-apk' || url.startsWith('/api/upload/apk')) {
+      const body = JSON.parse(opts.body);
+      configuredBaseApkUrl = body.base_apk_url || body.url;
+      return { ok: true, json: async () => ({ status: 'success' }) };
+    }
+    if (url === '/api/config/app') {
+      return { ok: true, json: async () => ({ status: 'success' }) };
+    }
+    return { ok: true, json: async () => ({}) };
+  };
+
+  app.window.runSingleAppPatch = async (pkg, skipPrompt) => {
+    dispatchedPkg = pkg;
+  };
+
+  await app.submitQuickUploadAndPatch();
+
+  assert.equal(configuredBaseApkUrl, 'https://github.com/wiwek13/AutoMorph/releases/download/base-apks/com.reddit.frontpage_v2024.44.0.apk');
+  assert.equal(dispatchedPkg, 'com.reddit.frontpage');
+});
+
+test('Quick Upload: index.html contains segmented tabs and Direct URL input markup', () => {
+  const html = fs.readFileSync(path.join(ROOT_DIR, 'web/frontend/index.html'), 'utf8');
+  assert.ok(html.includes('id="tab-btn-quick-file"'), 'Missing #tab-btn-quick-file');
+  assert.ok(html.includes('id="tab-btn-quick-url"'), 'Missing #tab-btn-quick-url');
+  assert.ok(html.includes('id="quick-upload-file-section"'), 'Missing #quick-upload-file-section');
+  assert.ok(html.includes('id="quick-upload-url-section"'), 'Missing #quick-upload-url-section');
+  assert.ok(html.includes('id="quick-upload-url-input"'), 'Missing #quick-upload-url-input');
+});
+
 
 
 

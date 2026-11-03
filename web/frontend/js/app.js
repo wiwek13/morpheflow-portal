@@ -10444,16 +10444,153 @@ function matchCatalogAppByFilename(filename, catalog) {
   return null;
 }
 
+function extractApkFilenameFromUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const cleanUrl = url.trim();
+  if (!cleanUrl) return '';
+
+  try {
+    const parsed = new URL(cleanUrl);
+    // 1. Check query parameters for package or apk name (e.g. ?pkg=com.example.app or ?file=app.apk)
+    for (const [key, val] of parsed.searchParams.entries()) {
+      if (['pkg', 'package', 'app', 'apk', 'file'].includes(key.toLowerCase()) && val) {
+        const cleanVal = decodeURIComponent(val).trim();
+        if (cleanVal.endsWith('.apk')) return cleanVal;
+        if (/^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(cleanVal)) {
+          return `${cleanVal}.apk`;
+        }
+      }
+    }
+
+    // 2. Extract the last segment from pathname
+    const pathname = parsed.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length > 0) {
+      const lastSeg = decodeURIComponent(segments[segments.length - 1]).trim();
+      if (lastSeg) {
+        if (lastSeg.endsWith('.apk')) return lastSeg;
+        if (/^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(lastSeg)) {
+          return `${lastSeg}.apk`;
+        }
+        return lastSeg;
+      }
+    }
+  } catch (e) {
+    const noQuery = cleanUrl.split('?')[0].split('#')[0];
+    const parts = noQuery.split('/').filter(Boolean);
+    if (parts.length > 0) {
+      return decodeURIComponent(parts[parts.length - 1]);
+    }
+  }
+
+  return '';
+}
+
 window.parseApkFilenameMetadata = parseApkFilenameMetadata;
 window.matchCatalogAppByFilename = matchCatalogAppByFilename;
+window.extractApkFilenameFromUrl = extractApkFilenameFromUrl;
 
+let currentQuickUploadMode = 'file'; // 'file' | 'url'
 let currentQuickUploadFile = null;
+let currentQuickUploadUrl = null;
 let currentQuickUploadPkg = null;
+
+function switchQuickUploadTab(mode) {
+  currentQuickUploadMode = mode === 'url' ? 'url' : 'file';
+  const fileTabBtn = document.getElementById('tab-btn-quick-file');
+  const urlTabBtn = document.getElementById('tab-btn-quick-url');
+  const fileSection = document.getElementById('quick-upload-file-section');
+  const urlSection = document.getElementById('quick-upload-url-section');
+
+  if (fileTabBtn) fileTabBtn.classList.toggle('active', currentQuickUploadMode === 'file');
+  if (urlTabBtn) urlTabBtn.classList.toggle('active', currentQuickUploadMode === 'url');
+
+  if (fileSection) fileSection.style.display = currentQuickUploadMode === 'file' ? 'block' : 'none';
+  if (urlSection) urlSection.style.display = currentQuickUploadMode === 'url' ? 'block' : 'none';
+
+  if (currentQuickUploadMode === 'url') {
+    const urlInput = document.getElementById('quick-upload-url-input');
+    if (urlInput && !urlInput.value.trim() && !currentQuickUploadPkg) {
+      setTimeout(() => { if (typeof urlInput.focus === 'function') urlInput.focus(); }, 50);
+    }
+  }
+}
+
+function handleQuickUploadUrlInput(e) {
+  const url = (e?.target?.value || '').trim();
+  const detectBtn = document.getElementById('btn-quick-url-detect');
+  if (detectBtn) detectBtn.disabled = !url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (url.toLowerCase().includes('.apk') || url.includes('/download/')) {
+      detectQuickUploadUrl();
+    }
+  }
+}
+
+function detectQuickUploadUrl() {
+  const urlInput = document.getElementById('quick-upload-url-input');
+  if (!urlInput) return;
+  const rawUrl = urlInput.value.trim();
+  if (!rawUrl) {
+    if (typeof showToast === 'function') showToast('Please enter a valid direct download URL', 'warning');
+    return;
+  }
+
+  if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+    if (typeof showToast === 'function') showToast('URL must start with http:// or https://', 'error');
+    return;
+  }
+
+  const filename = extractApkFilenameFromUrl(rawUrl);
+  const catalog = (typeof window !== 'undefined' && window.morpheCatalogData) ? window.morpheCatalogData : {};
+  const matched = matchCatalogAppByFilename(filename, catalog);
+  const metadata = parseApkFilenameMetadata(filename);
+
+  const pkg = matched ? matched.pkg : (metadata.suggestedPkg || 'custom.direct.url.app');
+  const name = matched ? matched.name : (metadata.friendlyName || metadata.suggestedPkg || filename.replace(/\.apk$/i, '') || 'Direct Download App');
+
+  currentQuickUploadUrl = rawUrl;
+  currentQuickUploadFile = null;
+  currentQuickUploadPkg = pkg;
+
+  // Show detected app card
+  const detectedCard = document.getElementById('quick-upload-detected-card');
+  if (detectedCard) detectedCard.style.display = 'block';
+
+  const nameEl = document.getElementById('quick-upload-app-name');
+  if (nameEl) nameEl.textContent = name;
+
+  const pkgEl = document.getElementById('quick-upload-app-pkg');
+  if (pkgEl) pkgEl.textContent = pkg;
+
+  const sizeEl = document.getElementById('quick-upload-file-size');
+  if (sizeEl) sizeEl.textContent = 'Direct Cloud URL';
+
+  const iconEl = document.getElementById('quick-upload-app-icon');
+  if (iconEl) {
+    iconEl.innerHTML = matched && matched.iconUrl
+      ? `<img src="${matched.iconUrl}" width="44" height="44" style="object-fit: cover; width: 100%; height: 100%; border-radius: inherit;">`
+      : `<span style="font-weight: 700; color: var(--accent-base);">${name.charAt(0).toUpperCase()}</span>`;
+  }
+
+  const patchesEl = document.getElementById('quick-upload-patch-count');
+  if (patchesEl) {
+    const patches = (typeof getCompatiblePatchesForPackage === 'function') ? getCompatiblePatchesForPackage(pkg) : [];
+    patchesEl.textContent = `${patches.length > 0 ? patches.length : 'Recommended'} Patches Ready`;
+  }
+
+  const submitBtn = document.getElementById('btn-submit-quick-upload-patch');
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Link & Patch Now</span>`;
+  }
+}
 
 function openQuickUploadModal() {
   const modal = document.getElementById('modal-quick-upload-patch');
   if (!modal) return;
   resetQuickUploadFile();
+  switchQuickUploadTab('file');
   modal.classList.add('open');
 
   const dropzone = document.getElementById('quick-upload-dropzone');
@@ -10472,6 +10609,21 @@ function openQuickUploadModal() {
       }
     });
   }
+
+  if (!modal.dataset.hasPasteListener) {
+    modal.dataset.hasPasteListener = 'true';
+    modal.addEventListener('paste', (e) => {
+      const pasted = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+      if (pasted.startsWith('http://') || pasted.startsWith('https://')) {
+        switchQuickUploadTab('url');
+        const urlInput = document.getElementById('quick-upload-url-input');
+        if (urlInput) {
+          urlInput.value = pasted.trim();
+          detectQuickUploadUrl();
+        }
+      }
+    });
+  }
 }
 
 function closeQuickUploadModal(e) {
@@ -10483,9 +10635,12 @@ function closeQuickUploadModal(e) {
 
 function resetQuickUploadFile() {
   currentQuickUploadFile = null;
+  currentQuickUploadUrl = null;
   currentQuickUploadPkg = null;
   const fileInput = document.getElementById('quick-upload-file-input');
   if (fileInput) fileInput.value = '';
+  const urlInput = document.getElementById('quick-upload-url-input');
+  if (urlInput) urlInput.value = '';
   const dropzone = document.getElementById('quick-upload-dropzone');
   if (dropzone) dropzone.style.display = 'block';
   const detectedCard = document.getElementById('quick-upload-detected-card');
@@ -10510,6 +10665,7 @@ function processQuickUploadFile(file) {
     return;
   }
   currentQuickUploadFile = file;
+  currentQuickUploadUrl = null;
   const catalog = (typeof window !== 'undefined' && window.morpheCatalogData) ? window.morpheCatalogData : {};
   const matched = matchCatalogAppByFilename(file.name, catalog);
   const metadata = parseApkFilenameMetadata(file.name);
@@ -10547,14 +10703,18 @@ function processQuickUploadFile(file) {
   }
 
   const submitBtn = document.getElementById('btn-submit-quick-upload-patch');
-  if (submitBtn) submitBtn.disabled = false;
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Upload & Patch Now</span>`;
+  }
 }
 
 async function submitQuickUploadAndPatch() {
-  if (!currentQuickUploadFile || !currentQuickUploadPkg) return;
+  if (!currentQuickUploadPkg) return;
+  if (!currentQuickUploadFile && !currentQuickUploadUrl) return;
 
   const pkg = currentQuickUploadPkg;
-  const file = currentQuickUploadFile;
+  const isUrlMode = Boolean(currentQuickUploadUrl);
   const submitBtn = document.getElementById('btn-submit-quick-upload-patch');
   const progressContainer = document.getElementById('quick-upload-progress-container');
   const progressBar = document.getElementById('quick-upload-progress-bar');
@@ -10565,44 +10725,71 @@ async function submitQuickUploadAndPatch() {
 
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = `<span class="live-pulse-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-base); margin-right: 0.375rem; animation: pulse 1s infinite;"></span><span>Uploading…</span>`;
+    submitBtn.innerHTML = `<span class="live-pulse-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-base); margin-right: 0.375rem; animation: pulse 1s infinite;"></span><span>${isUrlMode ? 'Configuring…' : 'Uploading…'}</span>`;
   }
 
   if (progressContainer) progressContainer.style.display = 'block';
-  if (progressFilename) progressFilename.textContent = file.name;
-  if (progressStatus) progressStatus.textContent = 'Uploading Base APK…';
+  if (progressStatus) progressStatus.textContent = isUrlMode ? 'Linking Direct Download URL…' : 'Uploading Base APK…';
+  if (progressFilename) progressFilename.textContent = isUrlMode ? currentQuickUploadUrl : currentQuickUploadFile.name;
   if (progressBar) {
-    progressBar.style.width = '0%';
-    progressBar.classList.remove('complete');
+    progressBar.style.width = isUrlMode ? '100%' : '0%';
+    if (isUrlMode) progressBar.classList.add('complete');
+    else progressBar.classList.remove('complete');
   }
+  if (progressPercent) progressPercent.textContent = isUrlMode ? '100%' : '0%';
+  if (progressBytes) progressBytes.textContent = isUrlMode ? 'Direct Cloud URL' : `0 MB / ${(currentQuickUploadFile.size / (1024 * 1024)).toFixed(1)} MB`;
 
   try {
-    const formData = new FormData();
-    formData.append('package', pkg);
-    formData.append('apk', file);
-
-    // 1. Upload Base APK with live progress
-    const uploadFn = (typeof uploadApkWithProgress === 'function')
-      ? uploadApkWithProgress
-      : (typeof window !== 'undefined' && window.uploadApkWithProgress)
-        ? window.uploadApkWithProgress
-        : null;
-
-    if (!uploadFn) throw new Error('uploadApkWithProgress function unavailable');
-
-    await uploadFn(
-      `/api/upload/apk?package=${encodeURIComponent(pkg)}`,
-      formData,
-      (progress) => {
-        if (progressBar) progressBar.style.width = `${progress.percent}%`;
-        if (progressPercent) progressPercent.textContent = `${progress.percent}%`;
-        if (progressBytes) progressBytes.textContent = `${progress.loadedMb} / ${progress.totalMb} MB`;
-        if (progress.percent >= 100) {
-          if (progressStatus) progressStatus.textContent = 'Verifying & Saving APK…';
-          if (progressBar) progressBar.classList.add('complete');
-        }
+    if (isUrlMode) {
+      // 1. Configure base APK URL via /api/config/app/base-apk
+      let configSaved = false;
+      try {
+        const res = await fetch('/api/config/app/base-apk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package: pkg, base_apk_url: currentQuickUploadUrl })
+        });
+        if (res.ok) configSaved = true;
+      } catch (e) {
+        // Continue to fallback
       }
-    );
+
+      if (!configSaved) {
+        // Fallback to /api/upload/apk JSON endpoint
+        await fetch('/api/upload/apk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package: pkg, url: currentQuickUploadUrl })
+        });
+      }
+    } else {
+      // 1. Upload local binary with streaming progress
+      const formData = new FormData();
+      formData.append('package', pkg);
+      formData.append('apk', currentQuickUploadFile);
+
+      const uploadFn = (typeof uploadApkWithProgress === 'function')
+        ? uploadApkWithProgress
+        : (typeof window !== 'undefined' && window.uploadApkWithProgress)
+          ? window.uploadApkWithProgress
+          : null;
+
+      if (!uploadFn) throw new Error('uploadApkWithProgress function unavailable');
+
+      await uploadFn(
+        `/api/upload/apk?package=${encodeURIComponent(pkg)}`,
+        formData,
+        (progress) => {
+          if (progressBar) progressBar.style.width = `${progress.percent}%`;
+          if (progressPercent) progressPercent.textContent = `${progress.percent}%`;
+          if (progressBytes) progressBytes.textContent = `${progress.loadedMb} / ${progress.totalMb} MB`;
+          if (progress.percent >= 100) {
+            if (progressStatus) progressStatus.textContent = 'Verifying & Saving APK…';
+            if (progressBar) progressBar.classList.add('complete');
+          }
+        }
+      );
+    }
 
     // 2. Ensure package is configured in state
     if (!state.configuredApps) state.configuredApps = [];
@@ -10615,7 +10802,8 @@ async function submitQuickUploadAndPatch() {
         package_name: pkg,
         name: catItem?.name || pkg,
         enabled: true,
-        repos: catItem?.supported_repos || ['MorpheApp/morphe-patches']
+        repos: catItem?.supported_repos || ['MorpheApp/morphe-patches'],
+        options: isUrlMode ? { base_apk_url: currentQuickUploadUrl } : {}
       };
       state.configuredApps.push(appConfig);
       try {
@@ -10627,10 +10815,17 @@ async function submitQuickUploadAndPatch() {
       } catch (e) {
         console.warn('Could not auto-register package:', e);
       }
+    } else if (isUrlMode) {
+      if (!appConfig.options) appConfig.options = {};
+      appConfig.options.base_apk_url = currentQuickUploadUrl;
     }
 
     if (typeof showToast === 'function') {
-      showToast(`APK uploaded! Starting build for ${appConfig.name || pkg}…`, 'success');
+      showToast(isUrlMode
+        ? `Direct URL linked! Starting build for ${appConfig.name || pkg}…`
+        : `APK uploaded! Starting build for ${appConfig.name || pkg}…`,
+        'success'
+      );
     }
     closeQuickUploadModal();
 
@@ -10647,11 +10842,11 @@ async function submitQuickUploadAndPatch() {
     if (typeof loadOverviewData === 'function') loadOverviewData();
   } catch (err) {
     if (typeof showToast === 'function') {
-      showToast(`Upload failed: ${err.message}`, 'error');
+      showToast(`${isUrlMode ? 'Configuration' : 'Upload'} failed: ${err.message}`, 'error');
     }
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = `<span>Retry Upload</span>`;
+      submitBtn.innerHTML = `<span>Retry ${isUrlMode ? 'Link' : 'Upload'}</span>`;
     }
   }
 }
@@ -10662,6 +10857,10 @@ window.resetQuickUploadFile = resetQuickUploadFile;
 window.handleQuickUploadFileSelected = handleQuickUploadFileSelected;
 window.processQuickUploadFile = processQuickUploadFile;
 window.submitQuickUploadAndPatch = submitQuickUploadAndPatch;
+window.switchQuickUploadTab = switchQuickUploadTab;
+window.handleQuickUploadUrlInput = handleQuickUploadUrlInput;
+window.detectQuickUploadUrl = detectQuickUploadUrl;
+
 
 
 

@@ -41,12 +41,14 @@ The main MorpheFlow dashboard displays all configured target applications as int
 * **Execution Mutex**: Shows active execution locks, duration, and parallel workers.
 * **Direct Actions**: Trigger immediate builds, configure patches, or download compiled APK binaries.
 
-### 1.2 Direct Home "Upload & Patch" Flow
+### 1.2 Direct Home "Upload & Patch" Flow (Local File or Direct URL)
 For the fastest possible workflow without manually navigating menus:
-1. Click the prominent **Upload & Patch** button in the Operations Queue header (or drag-and-drop any `.apk` file into the modal).
-2. MorpheFlow analyzes the filename and cross-references the 1,354-app Community Catalog client-side to instantly detect the app name, icon, and recommended patch set.
-3. The binary streams to `/api/upload/apk` with real-time percentage and MB progress indicators.
-4. MorpheFlow auto-provisions the package if new, dispatches the build runner, and transitions to the live console.
+1. Click the prominent **Upload & Patch** button in the Operations Queue header.
+2. Choose your input mode:
+   * **Upload File (.apk)**: Drag-and-drop or browse any local `.apk` binary.
+   * **Direct Download URL**: Paste any direct HTTP/HTTPS link to an APK (GitHub release, CDN, S3, or direct mirror). MorpheFlow automatically extracts the filename, resolves query parameters, and auto-matches against the 1,354-app Community Catalog.
+3. Review the detected app name, icon, and recommended patch count.
+4. Click **Upload & Patch Now** (or **Link & Patch Now**): MorpheFlow provisions the package, links the base APK source, and immediately dispatches the build runner with live console streaming.
 
 ### 1.3 SemVer 2.0 Version Analysis
 Each app card displays a high-visibility version matrix:

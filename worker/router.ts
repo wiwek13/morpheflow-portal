@@ -1019,32 +1019,84 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
       return json({ error: 'package identifier is required' }, 400);
     }
     const pkg = await storage.getPackage(body.package);
-    if (!pkg) return json({ error: 'Package not found' }, 404);
-
-    const currentOptions = pkg.options || {};
+    const currentOptions = pkg?.options || {};
     currentOptions.base_apk_url = body.base_apk_url || '';
 
     await storage.savePackage({
       package: body.package,
+      enabled: pkg ? pkg.enabled : true,
+      repos: pkg ? pkg.repos : ['MorpheApp/morphe-patches'],
       options: currentOptions,
     });
 
     return json({ status: 'success', package: body.package, base_apk_url: body.base_apk_url });
   }
 
-  // 9c. Direct Base APK File Upload: POST /api/upload/apk
+  // 9c. Direct Base APK File Upload or Direct URL: POST /api/upload/apk
   if (path === '/api/upload/apk' && method === 'POST') {
     const contentType = request.headers.get('content-type') || '';
     let pkg = url.searchParams.get('package') || '';
+    let directUrl = url.searchParams.get('url') || '';
     let fileBuffer: ArrayBuffer | null = null;
     let fileName = '';
+
+    if (contentType.includes('application/json')) {
+      const jsonBody = await request.json<any>().catch(() => ({}));
+      pkg = jsonBody.package || pkg;
+      directUrl = jsonBody.url || jsonBody.base_apk_url || directUrl;
+
+      if (!pkg) {
+        return json({ error: 'Package identifier is required' }, 400);
+      }
+      if (!directUrl) {
+        return json({ error: 'Direct download URL is required' }, 400);
+      }
+
+      const existingPkg = await storage.getPackage(pkg);
+      const currentOptions = existingPkg?.options || {};
+      currentOptions.base_apk_url = directUrl;
+
+      await storage.savePackage({
+        package: pkg,
+        enabled: existingPkg ? existingPkg.enabled : true,
+        repos: existingPkg ? existingPkg.repos : ['MorpheApp/morphe-patches'],
+        options: currentOptions,
+      });
+
+      return json({
+        status: 'success',
+        package: pkg,
+        base_apk_url: directUrl,
+      });
+    }
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       const file = formData.get('apk') as File | null;
       pkg = (formData.get('package') as string) || pkg;
+      directUrl = (formData.get('url') as string) || directUrl;
+
+      if (directUrl && !file) {
+        const existingPkg = await storage.getPackage(pkg);
+        const currentOptions = existingPkg?.options || {};
+        currentOptions.base_apk_url = directUrl;
+
+        await storage.savePackage({
+          package: pkg,
+          enabled: existingPkg ? existingPkg.enabled : true,
+          repos: existingPkg ? existingPkg.repos : ['MorpheApp/morphe-patches'],
+          options: currentOptions,
+        });
+
+        return json({
+          status: 'success',
+          package: pkg,
+          base_apk_url: directUrl,
+        });
+      }
+
       if (!file) {
-        return json({ error: 'No APK file provided in formData field "apk"' }, 400);
+        return json({ error: 'No APK file or direct URL provided' }, 400);
       }
       fileName = file.name || `${pkg}.apk`;
       fileBuffer = await file.arrayBuffer();
