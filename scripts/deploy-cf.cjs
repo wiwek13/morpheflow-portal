@@ -340,7 +340,16 @@ function setupGitHubIntegration(workerUrl, webhookSecret) {
     // Enable workflow if disabled
     try {
       run(`gh workflow enable morpheflow-cloud-builder.yaml -R "${targetRepo}"`);
+      success('Enabled cloud builder workflow: morpheflow-cloud-builder.yaml');
     } catch {}
+
+    // Ensure workflow has write permissions to create GitHub Releases and upload APKs
+    try {
+      run(`gh api --method PUT repos/${targetRepo}/actions/permissions/workflow -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true`);
+      success('Granted GitHub Actions write permissions (for automated Releases & Tags)');
+    } catch (permErr) {
+      warn(`Notice configuring workflow permissions: ${permErr.message}`);
+    }
   } catch (err) {
     warn(`Could not set GitHub secrets: ${err.message}`);
   }
