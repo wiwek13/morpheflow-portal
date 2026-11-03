@@ -129,7 +129,19 @@ graph TD
 
 ## 🚀 Quick Start & Deployment
 
-MorpheFlow provides two deployment methods: **Cloudflare Workers (Serverless)** and **Docker Compose (Self-Hosted)**.
+MorpheFlow ships two runtimes: **Cloudflare Workers (serverless edge)** and the **self-hosted backend** (FastAPI on `:8080`).
+Pick the self-hosted install format that fits your machine:
+
+| Format | Best for | Command |
+|---|---|---|
+| Docker Compose | Homelab (Unraid/Proxmox/TrueNAS), Oracle VPS | `docker compose -f default_compose.yaml up -d` |
+| 1-line installer | Fastest bare-metal / VPS setup | `curl -fsSL https://raw.githubusercontent.com/wiwek13/morpheflow-portal/main/install.sh \| bash` |
+| `.deb` / `.rpm` | Debian/Ubuntu, Fedora/RHEL with `systemd` | download from [Releases](https://github.com/wiwek13/morpheflow-portal/releases), `sudo apt install ./morpheflow_*_amd64.deb` |
+| AUR (`morpheflow-git`) | Arch Linux / CachyOS / EndeavourOS | `yay -S morpheflow-git` ([AUR page](https://aur.archlinux.org/packages/morpheflow-git)) |
+| AppImage | Portable run without install (x86_64) | download `MorpheFlow-*-x86_64.AppImage`, `chmod +x` and run |
+
+> Note: native packages (`.deb`/`.rpm`/AppImage/1-liner) install the **self-hosted backend**.
+> The Cloudflare Workers edge portal is deployed separately via `./deploy.sh` below.
 
 ### Method 1: Cloudflare Workers (Recommended · 100% Free · Zero VPS)
 
@@ -180,6 +192,77 @@ If you prefer self-hosting on your own homelab (Unraid, Proxmox, TrueNAS) or an 
    docker compose up -d
    ```
 4. Access your portal at `http://localhost:8080` (or via your configured tunnel).
+
+### Method 3: Native packages — `.deb`, `.rpm`, AppImage, 1-line installer
+
+Native packages install the same self-hosted backend as Docker, but as a `systemd` service
+(`morpheflow.service` → `http://127.0.0.1:8080`) instead of a container. Requires Python 3.11+
+and Java 21 (declared as package dependencies and checked at install time).
+
+**Option A — 1-line installer** (installs Docker Compose setup by default):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wiwek13/morpheflow-portal/main/install.sh | bash
+# variants:
+curl -fsSL https://raw.githubusercontent.com/wiwek13/morpheflow-portal/main/install.sh | bash -s -- --native    # .deb/.rpm + systemd service
+curl -fsSL https://raw.githubusercontent.com/wiwek13/morpheflow-portal/main/install.sh | bash -s -- --appimage   # portable AppImage
+```
+
+**Option B — `.deb` (Debian/Ubuntu)**:
+
+```bash
+# From the Releases page (tagged builds attach .deb/.rpm/AppImage automatically):
+sudo apt install ./morpheflow_2.4.1-1_amd64.deb
+sudo systemctl enable --now morpheflow
+# Dashboard: http://127.0.0.1:8080
+```
+
+**Option C — `.rpm` (Fedora/RHEL)**:
+
+```bash
+sudo dnf install ./morpheflow-2.4.1-1.x86_64.rpm
+sudo systemctl enable --now morpheflow
+```
+
+**Option D — AppImage (portable, x86_64)**:
+
+```bash
+chmod +x MorpheFlow-2.4.1-x86_64.AppImage
+./MorpheFlow-2.4.1-x86_64.AppImage   # needs system python3 (>=3.11) + Java 21
+```
+
+**Option E — Arch Linux (AUR, [`morpheflow-git`](https://aur.archlinux.org/packages/morpheflow-git))**:
+
+```bash
+yay -S morpheflow-git          # or: paru -S morpheflow-git
+sudo systemctl enable --now morpheflow
+```
+
+No AUR helper? Build directly from this repo (same sources as the AUR package):
+
+```bash
+cd packaging/aur
+makepkg -si   # needs base-devel + git; never run makepkg as root
+```
+
+The AUR packaging (`packaging/aur/PKGBUILD` + `.SRCINFO` + `morpheflow.install`)
+mirrors the `.deb`/`.rpm` layout: code in `/opt/morpheflow`, venv + `morphe.jar`
+created once by the install scriptlet, state in `/var/lib/morpheflow`.
+It is published as a `-git` package tracking `main` because upstream
+publishes no version tags yet; `.SRCINFO` is regenerated with
+`makepkg --printsrcinfo` before each AUR push.
+
+**Build packages locally**:
+
+```bash
+./packaging/build.sh --version 2.4.1 --arch amd64   # .deb + .rpm into dist/
+./packaging/appimage/build-appimage.sh --version 2.4.1
+```
+
+Service layout: code in `/opt/morpheflow`, state in `/var/lib/morpheflow`,
+logs via `journalctl -u morpheflow`. Python venv is created at `/opt/morpheflow/.venv`
+and the Morphe patcher jar is fetched once by the post-install script
+(`packaging/postinst.sh`). Uninstalling the package keeps `/var/lib/morpheflow` data.
 
 ---
 
