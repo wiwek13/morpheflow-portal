@@ -19,46 +19,96 @@
 
 ---
 
-## 🌟 Overview
+## 👶 Explain Like I'm 5 (ELI5): What is MorpheFlow?
 
-**MorpheFlow** is an open-source, self-hosted edge management portal and automated continuous-integration pipeline for patching, deterministically signing, and distributing Android applications.
+### 🛑 The Problem
+You want to use your favorite Android apps without annoying ads and with premium features (like **YouTube ReVanced**, **Reddit** without promoted spam, or **Instagram** with clean AMOLED dark mode).
 
-Built as a next-generation evolution of [AutoMorph](https://github.com/holjab/AutoMorph) and powered by [Morphe Desktop](https://morphe.software), MorpheFlow transitions Android bytecode patching from heavy, local servers into a sleek, serverless edge architecture running **100% within the Cloudflare Free Tier** with zero VPS maintenance and zero credit card required.
+Normally, doing this is a huge hassle:
+- You have to download sketchy pre-patched `.apk` files from random websites that might contain malware or spyware.
+- Or you have to manually run complex patcher programs on your PC and plug your phone in with cables every single time an app releases an update.
 
----
-
-## 🚦 New User? Start Here in 3 Steps
-
-MorpheFlow gives you a personal, automated Android patching studio that compiles your favorite apps (YouTube ReVanced, Reddit, Instagram, Twitter, etc.) with custom patches and keeps them updated automatically on your phone.
-
-### Choose Your Path:
-| Path | Best For | Requirement | Experience |
-|---|---|---|---|
-| **🌐 Path 1: Cloudflare Edge (Recommended)** | Most users | Free Cloudflare + Free GitHub | Zero server costs, zero VPS, personal web dashboard + cloud builder |
-| **🏠 Path 2: Homelab / Docker** | Self-hosters | Docker / Linux / Unraid | Local FastAPI server on `:8080` with background workers |
-| **📱 Path 3: Android Obtainium Client** | Mobile install & updates | Android phone | 1-Click sync into Obtainium for background APK auto-updates |
+### 💡 The MorpheFlow Solution
+**MorpheFlow gives you a personal, automated robot in the cloud:**
+1. **You control it from a clean website**: Access your own private web dashboard from any browser or phone. Drag-and-drop any `.apk` file, paste a direct download link, or choose from 1,354+ popular apps in the built-in catalog.
+2. **It compiles everything in the cloud for free**: Free GitHub servers download the clean original app, apply your chosen patches, and sign it securely. You don't need to keep your PC turned on or pay for a VPS server.
+3. **It verifies safety with VirusTotal**: Every compiled APK is automatically scanned and audited with SHA-256 digests so you know it is 100% clean and safe before installing.
+4. **Your phone updates automatically**: Connect your dashboard to [Obtainium](https://github.com/ImranR98/Obtainium) on your Android phone with **1 click**. Whenever YouTube or Reddit releases a new version, your cloud robot compiles it, and your phone updates it silently in the background!
+5. **Cost? 100% Free Forever**: Runs entirely on Cloudflare's and GitHub's free tiers. No credit card required.
 
 ---
 
-### ⚡ 3-Minute Quickstart (Path 1 · Free Serverless Cloud)
+## 📋 What You Need First (Prerequisites)
 
-1. **Clone this repository & run the deployer**:
-   ```bash
-   git clone https://github.com/wiwek13/morpheflow-portal.git
-   cd morpheflow-portal
-   ./deploy.sh          # macOS / Linux (or .\deploy.ps1 on Windows)
-   ```
-   *The script automatically provisions your free Cloudflare D1 database, configures a private GitHub builder repository for your releases, deploys the edge portal, and prints your master password.*
+Everything used by MorpheFlow is **100% free** and requires **zero credit card**:
 
-2. **Open your web dashboard & patch any app**:
-   - Navigate to `https://morpheflow.<subdomain>.workers.dev` and log in.
-   - **Upload & Patch**: Drag-and-drop any base `.apk` or paste a direct download URL directly from the Home screen.
-   - **Or Provision from Catalog**: Select from 1,354+ community apps (YouTube, Reddit, Instagram, etc.) with automated conflict linting.
-   - Hit **Run Pipeline** — your GitHub Actions runner compiles and signs the APK in ~2-3 minutes.
+| Prerequisite | Why You Need It | How to Get It |
+|---|---|---|
+| **Free GitHub Account** | Runs your cloud builds (GitHub Actions) and stores your private APK releases. | [Sign up on GitHub](https://github.com/join) |
+| **GitHub CLI (`gh`)** | Allows the automated setup script to create your private repository and link secrets. | Mac: `brew install gh`<br>Windows: `winget install GitHub.cli`<br>Linux: `sudo apt install gh` (or [cli.github.com](https://cli.github.com/)) |
+| **Free Cloudflare Account** | Hosts your personal web portal on the edge so you can manage your apps from anywhere. | [Sign up on Cloudflare](https://dash.cloudflare.com/sign-up) |
+| **Cloudflare Wrangler CLI** | Deploys your web dashboard to Cloudflare with one simple command. | Runs on-demand via `npx wrangler` (included with Node.js) |
+| **Node.js (v18+) & npm** | Runs the automated 1-click deployment script. | Download from [nodejs.org](https://nodejs.org/) (or `brew install node`) |
+| **Android Phone with Obtainium** | Installs your patched apps and keeps them updated in the background. | Download [Obtainium on GitHub](https://github.com/ImranR98/Obtainium/releases) |
 
-3. **Install & auto-update on your phone**:
-   - Open your dashboard on your phone and tap **1-Click Sync to Obtainium**.
-   - Your device installs the clean, VirusTotal-audited APK and checks for automatic background updates!
+---
+
+## 🚀 ELI5: Complete Setup in 4 Easy Steps
+
+### Step 1: Log in to your free accounts in your terminal (1 minute, one-time)
+Open your terminal (Terminal on Mac/Linux, or PowerShell on Windows) and log into your accounts:
+
+```bash
+# 1. Log in to GitHub (choose "GitHub.com" > "HTTPS" > "Login with a web browser")
+gh auth login
+
+# 2. Log in to Cloudflare (a browser window will pop up to authorize)
+npx wrangler login
+```
+
+---
+
+### Step 2: Download & run the 1-Click Setup Script (~90 seconds)
+Run these commands in your terminal:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/wiwek13/morpheflow-portal.git
+cd morpheflow-portal
+
+# 2. Run the automated installer
+./deploy.sh          # macOS / Linux
+.\deploy.ps1         # Windows PowerShell
+```
+
+**What the script does automatically for you behind the scenes:**
+- 🔒 **Creates a private GitHub repository** (`<your-username>/MorpheFlow`) on your personal GitHub account so your builds, APK releases, and signing keys stay 100% private to you.
+- 🗄️ **Creates your free Cloudflare D1 database** to save your app selections, options, and logs.
+- 🌐 **Deploys your edge web dashboard** to `https://morpheflow.<your-subdomain>.workers.dev`.
+- 🔑 **Links GitHub Actions and Cloudflare** with encrypted secrets and write permissions so they talk to each other automatically.
+- 📋 **Prints your live website link and master password** right in the terminal!
+
+---
+
+### Step 3: Open your web dashboard & patch your first app
+1. Click the website link printed in your terminal (e.g. `https://morpheflow.<your-subdomain>.workers.dev`).
+2. Log in using the master password generated in Step 2.
+3. Choose how to patch:
+   - **Option A (Instant Upload & Patch)**: Click the **"Upload & Patch"** button on the Home screen. Drop any `.apk` file or paste a direct download URL.
+   - **Option B (Community Catalog)**: Click **"Provision New App"**, select from 1,354+ community apps (YouTube, Reddit, Instagram, etc.), and choose your preferred patches (Ad Blocking, AMOLED Black, SponsorBlock, etc.).
+4. Click **"Run Pipeline"** — your private GitHub cloud builder will patch, sign, VirusTotal-scan, and upload your release in ~2-3 minutes.
+
+---
+
+### Step 4: Connect your Android phone for background auto-updates
+1. Open your personal MorpheFlow dashboard on your Android phone's browser.
+2. Tap the **"1-Click Sync to Obtainium"** button.
+3. Obtainium opens and imports all your selected apps automatically.
+4. **Done!** Obtainium installs your apps now, and automatically updates them in the background whenever new versions or patches are released.
+
+---
+
+## 🌟 Technical Overview
 
 ---
 
