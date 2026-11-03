@@ -346,17 +346,15 @@ jobs:
 
             # 4. Prune obsolete timestamped build releases, keeping only the 5 newest
             echo "[*] Pruning obsolete timestamped build releases..."
-            gh release list -R "${REPO}" --limit 100 --json tagName,createdAt | \
-            python3 -c "
-import sys, json, subprocess
-releases = json.load(sys.stdin)
-build_releases = [r for r in releases if r.get('tagName', '').startswith('build-')]
-build_releases.sort(key=lambda r: r.get('createdAt', ''), reverse=True)
-for r in build_releases[5:]:
-    tag = r['tagName']
-    print(f'Pruning old build release: {tag}')
-    subprocess.run(['gh', 'release', 'delete', tag, '-R', '${REPO}', '--yes', '--cleanup-tag'], capture_output=True)
-" || true
+            gh release list -R "${REPO}" --limit 100 --json tagName | \
+              jq -r '.[].tagName | select(startswith("build-"))' | \
+              sed -e '1,5d' | \
+              while read -r old_tag; do
+                if [ -n "$old_tag" ]; then
+                  echo "Pruning old build release: $old_tag"
+                  gh release delete "$old_tag" -R "${REPO}" --yes --cleanup-tag || true
+                fi
+              done
           else
             echo "[!] No new APKs needed building. All tracked apps are up to date."
             echo "TAG=" >> $GITHUB_OUTPUT
