@@ -10446,4 +10446,114 @@ function matchCatalogAppByFilename(filename, catalog) {
 window.parseApkFilenameMetadata = parseApkFilenameMetadata;
 window.matchCatalogAppByFilename = matchCatalogAppByFilename;
 
+let currentQuickUploadFile = null;
+let currentQuickUploadPkg = null;
+
+function openQuickUploadModal() {
+  const modal = document.getElementById('modal-quick-upload-patch');
+  if (!modal) return;
+  resetQuickUploadFile();
+  modal.style.display = 'flex';
+
+  const dropzone = document.getElementById('quick-upload-dropzone');
+  if (dropzone && !dropzone.dataset.hasDropListeners) {
+    dropzone.dataset.hasDropListeners = 'true';
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+        processQuickUploadFile(e.dataTransfer.files[0]);
+      }
+    });
+  }
+}
+
+function closeQuickUploadModal(e) {
+  if (e && e.target !== e.currentTarget && e.currentTarget.id === 'modal-quick-upload-patch') return;
+  const modal = document.getElementById('modal-quick-upload-patch');
+  if (modal) modal.style.display = 'none';
+  resetQuickUploadFile();
+}
+
+function resetQuickUploadFile() {
+  currentQuickUploadFile = null;
+  currentQuickUploadPkg = null;
+  const fileInput = document.getElementById('quick-upload-file-input');
+  if (fileInput) fileInput.value = '';
+  const dropzone = document.getElementById('quick-upload-dropzone');
+  if (dropzone) dropzone.style.display = 'block';
+  const detectedCard = document.getElementById('quick-upload-detected-card');
+  if (detectedCard) detectedCard.style.display = 'none';
+  const progressContainer = document.getElementById('quick-upload-progress-container');
+  if (progressContainer) progressContainer.style.display = 'none';
+  const submitBtn = document.getElementById('btn-submit-quick-upload-patch');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Upload & Patch Now</span>`;
+  }
+}
+
+function handleQuickUploadFileSelected(e) {
+  const file = e.target && e.target.files && e.target.files[0];
+  if (file) processQuickUploadFile(file);
+}
+
+function processQuickUploadFile(file) {
+  if (!file || !file.name || !file.name.toLowerCase().endsWith('.apk')) {
+    if (typeof showToast === 'function') showToast('Please select a valid Android .apk file', 'error');
+    return;
+  }
+  currentQuickUploadFile = file;
+  const catalog = (typeof window !== 'undefined' && window.morpheCatalogData) ? window.morpheCatalogData : {};
+  const matched = matchCatalogAppByFilename(file.name, catalog);
+  const metadata = parseApkFilenameMetadata(file.name);
+
+  const pkg = matched ? matched.pkg : (metadata.suggestedPkg || 'custom.unlisted.app');
+  const name = matched ? matched.name : (metadata.friendlyName || metadata.suggestedPkg || file.name.replace(/\.apk$/i, ''));
+  currentQuickUploadPkg = pkg;
+
+  const dropzone = document.getElementById('quick-upload-dropzone');
+  if (dropzone) dropzone.style.display = 'none';
+
+  const detectedCard = document.getElementById('quick-upload-detected-card');
+  if (detectedCard) detectedCard.style.display = 'block';
+
+  const nameEl = document.getElementById('quick-upload-app-name');
+  if (nameEl) nameEl.textContent = name;
+
+  const pkgEl = document.getElementById('quick-upload-app-pkg');
+  if (pkgEl) pkgEl.textContent = pkg;
+
+  const sizeEl = document.getElementById('quick-upload-file-size');
+  if (sizeEl) sizeEl.textContent = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+
+  const iconEl = document.getElementById('quick-upload-app-icon');
+  if (iconEl) {
+    iconEl.innerHTML = matched && matched.iconUrl
+      ? `<img src="${matched.iconUrl}" width="44" height="44" style="object-fit: cover; width: 100%; height: 100%; border-radius: inherit;">`
+      : `<span style="font-weight: 700; color: var(--accent-base);">${name.charAt(0).toUpperCase()}</span>`;
+  }
+
+  const patchesEl = document.getElementById('quick-upload-patch-count');
+  if (patchesEl) {
+    const patches = (typeof getCompatiblePatchesForPackage === 'function') ? getCompatiblePatchesForPackage(pkg) : [];
+    patchesEl.textContent = `${patches.length > 0 ? patches.length : 'Recommended'} Patches Ready`;
+  }
+
+  const submitBtn = document.getElementById('btn-submit-quick-upload-patch');
+  if (submitBtn) submitBtn.disabled = false;
+}
+
+window.openQuickUploadModal = openQuickUploadModal;
+window.closeQuickUploadModal = closeQuickUploadModal;
+window.resetQuickUploadFile = resetQuickUploadFile;
+window.handleQuickUploadFileSelected = handleQuickUploadFileSelected;
+window.processQuickUploadFile = processQuickUploadFile;
+
+
 
