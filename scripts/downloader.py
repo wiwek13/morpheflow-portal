@@ -7,7 +7,7 @@ import filecmp
 import re
 import os
 from pathlib import Path
-from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED
+from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED, is_zipfile
 from pyaxmlparser import APK
 import logging
 
@@ -88,7 +88,12 @@ class Downloader:
                     asset_pattern = tag_and_asset[1] if len(tag_and_asset) > 1 else "*.apk"
                     cmd = ["gh", "release", "download", tag, "-R", repo_part, "-D", str(outer_dir), "--pattern", asset_pattern, "--clobber"]
                     res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-                    downloaded_files = [f for f in outer_dir.glob("*.apk") if f.is_file() and f.stat().st_size > 1000]
+                    if res.returncode != 0:
+                        raise RuntimeError(f"gh release download failed (exit {res.returncode}): {res.stderr.strip()}")
+                    downloaded_files = [
+                        f for f in outer_dir.glob("*.apk")
+                        if f.is_file() and f.stat().st_size > 1000 and is_zipfile(f)
+                    ]
                     if downloaded_files:
                         if not dest_apk.exists() and downloaded_files[0] != dest_apk:
                             shutil.copy2(downloaded_files[0], dest_apk)
