@@ -1,0 +1,78 @@
+name: PR Agent (Local 3B Runner)
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+    types: [created]
+
+jobs:
+  pr_agent_job:
+    # Only run on pull requests or comments directed at PR-Agent (e.g. /review, /describe, /improve)
+    if: |
+      github.event.sender.type != 'Bot' && (
+        github.event_name == 'pull_request' || (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          startsWith(github.event.comment.body, '/')
+        )
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Cache Ollama model weights (~1.9GB) to avoid re-downloading on every workflow run
+      - name: Cache Ollama Models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ${{ runner.os }}-ollama-qwen2.5-coder-3b
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      # 2. Install Ollama and launch background daemon on CPU runner
+      - name: Install and Start Ollama
+        run: |
+          echo "[*] Installing Ollama..."
+          curl -fsSL https://ollama.com/install.sh | sh
+
+          echo "[*] Starting Ollama daemon in background..."
+          OLLAMA_NUM_PARALLEL=1 ollama serve &
+
+          echo "[*] Waiting for Ollama server to respond..."
+          for i in {1..30}; do
+            if curl -s http://localhost:11434/api/tags > /dev/null; then
+              echo "[✓] Ollama is up and healthy!"
+              break
+            fi
+            sleep 1
+          done
+
+      # 3. Pull Qwen2.5-Coder 3B (SOTA ~3B code model)
+      - name: Pull Qwen2.5-Coder 3B Model
+        run: |
+          echo "[*] Pulling qwen2.5-coder:3b (approx 1.9 GB)..."
+          ollama pull qwen2.5-coder:3b
+          echo "[✓] Model ready in local runner memory."
+
+      # 4. Run PR-Agent with local CPU Ollama provider
+      - name: Run PR-Agent Action
+        uses: the-pr-agent/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: "not-needed" # Dummy key to satisfy PR-Agent client validation
+          CONFIG.MODEL: "ollama/qwen2.5-coder:3b"
+          CONFIG.FALLBACK_MODELS: "[]"
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "8192"
+          OLLAMA.API_BASE: "http://localhost:11434"
+
+          # Automated review capabilities
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
