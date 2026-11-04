@@ -58,3 +58,13 @@ test('Version Automation: Single source of truth is synchronized across files', 
     `index.html must match fallback version v${currentVer}`
   );
 });
+
+test('Package Metadata: Validates license, repository, and issue tracker consistency', () => {
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const licenseText = fs.readFileSync('LICENSE', 'utf8');
+
+  assert.equal(pkg.license, 'MIT', 'package.json license must be MIT');
+  assert.ok(licenseText.includes('MIT License'), 'LICENSE file must be MIT');
+  assert.ok(pkg.repository && pkg.repository.url.includes('wiwek13/morpheflow-portal'), 'package.json repository must point to morpheflow-portal');
+  assert.ok(pkg.bugs && pkg.bugs.url.includes('wiwek13/morpheflow-portal/issues'), 'package.json bugs url must be configured');
+});

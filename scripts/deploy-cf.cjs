@@ -395,6 +395,24 @@ function printSummary(secrets, workerUrl) {
 }
 
 function main() {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`
+MorpheFlow 1-Click Cloudflare Deployer
+
+Usage:
+  ./deploy.sh [options]
+  node scripts/deploy-cf.cjs [options]
+
+Options:
+  --kv          Deploy using Cloudflare KV storage mode instead of D1 SQLite database
+  -h, --help    Show this help message and exit
+
+Documentation:
+  docs/cloudflare-workers-setup.md
+`);
+    process.exit(0);
+  }
+
   console.log('\n🤖 MorpheFlow Automated Cloudflare Deployer\n');
   try {
     // 0. Auto-sync version metadata across Worker and Frontend
