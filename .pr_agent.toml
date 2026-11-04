@@ -6,9 +6,16 @@ model = "ollama/qwen2.5-coder:3b"
 fallback_models = []
 custom_model_max_tokens = 16384
 ai_timeout = 600
+duplicate_examples = true
+temperature = 0.1
 
 [pr_reviewer]
 num_code_suggestions = 2
+inline_code_comments = false
+persistent_comment = true
 
 [pr_code_suggestions]
 num_code_suggestions = 2
+
+[pr_description]
+publish_labels = false
