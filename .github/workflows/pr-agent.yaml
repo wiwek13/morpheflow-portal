@@ -5,16 +5,19 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created]
+  workflow_dispatch:
 
 jobs:
   pr_agent_job:
-    # Only run on pull requests or comments directed at PR-Agent (e.g. /review, /describe, /improve)
+    # Only run on pull requests, slash comments directed at PR-Agent (e.g. /review), or manual trigger
     if: |
-      github.event.sender.type != 'Bot' && (
-        github.event_name == 'pull_request' || (
-          github.event_name == 'issue_comment' &&
-          github.event.issue.pull_request &&
-          startsWith(github.event.comment.body, '/')
+      github.event_name == 'workflow_dispatch' || (
+        github.event.sender.type != 'Bot' && (
+          github.event_name == 'pull_request' || (
+            github.event_name == 'issue_comment' &&
+            github.event.issue.pull_request &&
+            startsWith(github.event.comment.body, '/')
+          )
         )
       )
     runs-on: ubuntu-latest
@@ -22,6 +25,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      statuses: write
 
     steps:
       - name: Checkout Code
@@ -36,18 +40,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ollama-
 
-      # 2. Install Ollama and launch background daemon on CPU runner
+      # 2. Install Ollama and launch background daemon bound to all interfaces on runner
       - name: Install and Start Ollama
         run: |
           echo "[*] Installing Ollama..."
           curl -fsSL https://ollama.com/install.sh | sh
 
-          echo "[*] Starting Ollama daemon in background..."
+          echo "[*] Starting Ollama daemon on all interfaces (0.0.0.0:11434)..."
           OLLAMA_HOST=0.0.0.0:11434 OLLAMA_NUM_PARALLEL=1 ollama serve &
 
           echo "[*] Waiting for Ollama server to respond..."
           for i in {1..30}; do
-            if curl -s http://localhost:11434/api/tags > /dev/null; then
+            if curl -s http://127.0.0.1:11434/api/tags > /dev/null; then
               echo "[✓] Ollama is up and healthy!"
               break
             fi
@@ -61,7 +65,20 @@ jobs:
           ollama pull qwen2.5-coder:3b
           echo "[✓] Model ready in local runner memory."
 
-      # 4. Run PR-Agent with local CPU Ollama provider (pointing to runner host IP 172.17.0.1 from inside docker container)
+      # 4. Resolve Docker Host Gateway IP & Verify Container Connectivity
+      - name: Resolve Gateway and Verify Container Network
+        run: |
+          GATEWAY_IP=$(docker network inspect bridge --format='{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null || echo "172.17.0.1")
+          DOCKER_HOST_IP="${GATEWAY_IP:-172.17.0.1}"
+          echo "DOCKER_HOST_IP=$DOCKER_HOST_IP" >> $GITHUB_ENV
+          echo "[*] Docker gateway IP detected: $DOCKER_HOST_IP"
+
+          echo "[*] Testing container-to-host Ollama connectivity..."
+          docker run --rm alpine sh -c "wget -qO- http://$DOCKER_HOST_IP:11434/api/tags"
+          echo ""
+          echo "[✓] Docker container successfully communicated with host Ollama!"
+
+      # 5. Run PR-Agent with local CPU Ollama provider
       - name: Run PR-Agent Action
         uses: the-pr-agent/pr-agent@main
         env:
@@ -69,8 +86,9 @@ jobs:
           OPENAI_KEY: "not-needed" # Dummy key to satisfy PR-Agent client validation
           CONFIG.MODEL: "ollama/qwen2.5-coder:3b"
           CONFIG.FALLBACK_MODELS: "[]"
-          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "8192"
-          OLLAMA.API_BASE: "http://172.17.0.1:11434"
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "16384"
+          CONFIG.AI_TIMEOUT: "600"
+          OLLAMA.API_BASE: "http://${{ env.DOCKER_HOST_IP }}:11434"
 
           # Automated review capabilities
           GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"

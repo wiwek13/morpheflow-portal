@@ -1,0 +1,14 @@
+# PR-Agent configuration for MorpheFlow
+# Configures local Ollama runner using Qwen2.5-Coder 3B
+
+[config]
+model = "ollama/qwen2.5-coder:3b"
+fallback_models = []
+custom_model_max_tokens = 16384
+ai_timeout = 600
+
+[pr_reviewer]
+num_code_suggestions = 2
+
+[pr_code_suggestions]
+num_code_suggestions = 2
