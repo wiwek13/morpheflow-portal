@@ -100,6 +100,8 @@ jobs:
           CONFIG.FALLBACK_MODELS: "[]"
           CONFIG.CUSTOM_MODEL_MAX_TOKENS: "16384"
           CONFIG.AI_TIMEOUT: "600"
+          CONFIG.DUPLICATE_EXAMPLES: "true"
+          CONFIG.TEMPERATURE: "0.1"
           OLLAMA.API_BASE: "http://${{ env.DOCKER_HOST_IP }}:11434"
 
           # Automated review capabilities
