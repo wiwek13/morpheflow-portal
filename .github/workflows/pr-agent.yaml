@@ -43,7 +43,7 @@ jobs:
           curl -fsSL https://ollama.com/install.sh | sh
 
           echo "[*] Starting Ollama daemon in background..."
-          OLLAMA_NUM_PARALLEL=1 ollama serve &
+          OLLAMA_HOST=0.0.0.0:11434 OLLAMA_NUM_PARALLEL=1 ollama serve &
 
           echo "[*] Waiting for Ollama server to respond..."
           for i in {1..30}; do
@@ -61,7 +61,7 @@ jobs:
           ollama pull qwen2.5-coder:3b
           echo "[✓] Model ready in local runner memory."
 
-      # 4. Run PR-Agent with local CPU Ollama provider
+      # 4. Run PR-Agent with local CPU Ollama provider (pointing to runner host IP 172.17.0.1 from inside docker container)
       - name: Run PR-Agent Action
         uses: the-pr-agent/pr-agent@main
         env:
@@ -70,7 +70,7 @@ jobs:
           CONFIG.MODEL: "ollama/qwen2.5-coder:3b"
           CONFIG.FALLBACK_MODELS: "[]"
           CONFIG.CUSTOM_MODEL_MAX_TOKENS: "8192"
-          OLLAMA.API_BASE: "http://localhost:11434"
+          OLLAMA.API_BASE: "http://172.17.0.1:11434"
 
           # Automated review capabilities
           GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"

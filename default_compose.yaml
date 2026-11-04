@@ -1,6 +1,9 @@
 services:
   morpheflow:
     image: ghcr.io/wiwek13/morpheflow:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: morpheflow
     restart: unless-stopped
     ports:

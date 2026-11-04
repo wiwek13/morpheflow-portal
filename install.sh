@@ -52,10 +52,10 @@ do_docker() {
   cd "$INSTALL_DIR"
   [[ -f .env ]] || cp example.env .env
   if docker compose version >/dev/null 2>&1; then
-    docker compose -f default_compose.yaml pull
+    docker compose -f default_compose.yaml pull || docker compose -f default_compose.yaml build
     PORT="$PORT" docker compose -f default_compose.yaml up -d
   else
-    docker-compose -f default_compose.yaml pull
+    docker-compose -f default_compose.yaml pull || docker-compose -f default_compose.yaml build
     PORT="$PORT" docker-compose -f default_compose.yaml up -d
   fi
   log "done. Dashboard: http://localhost:${PORT}  (edit $INSTALL_DIR/.env for tunnels/email)"
