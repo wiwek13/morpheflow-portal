@@ -5551,7 +5551,7 @@ function buildObtainiumAppPayload(pkg, mode = obtainiumSourceMode) {
   if (mode === 'edge') {
     const origin = window.location.origin;
     const additionalSettings = JSON.stringify({
-      versionExtractionRegEx: '_([0-9]+(?:\\.[0-9]+)*(?:-[a-zA-Z0-9.]+)*)(?:_[v0-9.]+)?_patched\\.apk',
+      versionExtractionRegEx: '_([0-9][a-zA-Z0-9._-]*?)_(?:v[0-9][a-zA-Z0-9._-]*_)?patched\\.apk',
       matchGroupToUse: '1',
       apkFilterRegEx: '\\.apk$',
       autoCheckForUpdates: true
@@ -5826,6 +5826,15 @@ function openDirectObtainiumDeepLink(e) {
       navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).catch(() => {});
     }
   } catch (_) {}
+
+  // If more than 3 apps are selected, Android intent URLs (>2KB) get truncated by the OS.
+  // We automatically trigger file download and explain the reliable import step.
+  if (selected.length > 3) {
+    if (e && e.preventDefault) e.preventDefault();
+    downloadObtainiumJson();
+    showToast(`Bulk file downloaded for ${selected.length} apps! In Obtainium: Settings ➔ Import / Export ➔ Import from File`, 'info');
+    return;
+  }
 
   const deepLink = getObtainiumDirectDeepLink();
   showToast(`Launching Obtainium for ${selected.length} app${selected.length > 1 ? 's' : ''}…`, 'info');
