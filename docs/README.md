@@ -19,7 +19,14 @@ Choose a guide below to get started:
 * Serverless SQLite database (Cloudflare D1) with isolate memoization & atomic schema batching.
 * Automated cloud patch runner on GitHub Actions with automated metric sync, dedicated Obtainium feeds, and rolling in-place APK releases.
 
-### 📖 [2. User Guide & Web Interface](user-guide.md)
+### 🛠️ [2. Repository Operations & Maintenance Guide](../INSTRUCTIONS.md)
+* Complete guide to operating the dual-repository setup:
+  * Public Open-Source Portal (`wiwek13/morpheflow-portal`) vs. Private Cloud Builder & Releases (`wiwek13/MorpheFlow`).
+  * 2-Way cryptographic secrets handshake (`GITHUB_REPO`, `GITHUB_TOKEN`, `CLOUDFLARE_WORKER_URL`, `WEBHOOK_SECRET`).
+  * Safe multi-remote Git management (pushing code without leaking private release tags).
+  * 6-step health check verification checklist.
+
+### 📖 [3. User Guide & Web Interface](user-guide.md)
 * Comprehensive tour of the MorpheFlow console:
   * Operations Queue, SemVer target analysis, and live VirusTotal security badges.
   * Adding packages via the Provision App Wizard.

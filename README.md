@@ -371,6 +371,7 @@ MorpheFlow provides native first-class support for [Obtainium](https://github.co
 Explore comprehensive guides in our **[Documentation Hub](docs/README.md)**:
 
 * ⚡ **[Cloudflare Workers Setup Guide](docs/cloudflare-workers-setup.md)**: Deep dive into D1 database schemas, edge routing, and GitHub Actions cloud runners.
+* 🛠️ **[Repository Operations & Maintenance Guide](INSTRUCTIONS.md)**: Operating the dual-repository setup (Public Portal vs. Private Releases), Git synchronization, secrets verification, and Obtainium setup.
 * 📖 **[User Guide & Web Interface](docs/user-guide.md)**: Managing packages, Pure Patch Studio, custom patch options, and daily scheduling.
 * 🚇 **[Remote Access & Tunnels Guide](docs/tunnels.md)**: Setting up Pangolin, Tailscale Funnel, or Cloudflare Tunnels for self-hosted instances.
 * ☁️ **[Oracle Free Tier VPS Guide (Optional)](docs/oracle-setup.md)**: How to launch an Always Free VPS on Oracle Cloud Infrastructure.

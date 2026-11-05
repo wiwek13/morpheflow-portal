@@ -72,7 +72,7 @@ def main(project_root: Path, conf: dict) -> None:
                 )
                 return package_name, res, dest, attempt_details, applied_repos, run, winning_attempt, scanned_repos
             except Exception as e:
-                logger.error(f"[!] Thread error processing {package_name}: {e}")
+                logger.error(f"[!] Thread error processing {package_name}: {type(e).__name__}: {e}")
                 return package_name, False, None, [], None, None, None, scanned_repos
 
         if len(download_list) > 1 and not low_spec_mode:

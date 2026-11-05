@@ -138,6 +138,9 @@ class Morphe:
         return target_path
 
     def get_cached_repo(self, repo: str) -> Path | None:
+        if repo not in self.repo_details:
+            logger.warning(f"[!] Repository '{repo}' not found in repo_details. Skipping cache lookup.")
+            return None
         owner = self.repo_details[repo]['owner']
         repo_name = self.repo_details[repo]['repo_name']
         cached_repo_dir = self.project_root / "tools" / "morphe-data" / "patches" / f"{owner}-{repo_name}"
@@ -228,7 +231,8 @@ class Morphe:
         if self.force:
             for package_name, details in self.detailed_patch_list.items():
                 for r in details.get("repos", []):
-                    self.repo_search.setdefault(r, set()).add(package_name)
+                    if r in self.repo_details:
+                        self.repo_search.setdefault(r, set()).add(package_name)
         else:
             # 1. Any package that is "Waiting" (no patched APK exists in self.patched_dir)
             # MUST be checked and built!
@@ -238,13 +242,15 @@ class Morphe:
                 if not has_patched:
                     logger.info(f"[*] Package '{package_name}' has no existing patched APK (Waiting). Enqueuing for build.")
                     for r in details.get("repos", []):
-                        self.repo_search.setdefault(r, set()).add(package_name)
+                        if r in self.repo_details:
+                            self.repo_search.setdefault(r, set()).add(package_name)
 
             # 2. Check all enabled configured apps for upstream app updates (e.g. APKPure, staged APKs)
             # check_patched_version() will check each app and only compile if an update is available or app is unpatched
             for package_name, details in self.detailed_patch_list.items():
                 for r in details.get("repos", []):
-                    self.repo_search.setdefault(r, set()).add(package_name)
+                    if r in self.repo_details:
+                        self.repo_search.setdefault(r, set()).add(package_name)
 
         # Ensure any repo in repo_search has its cache built
         missing_cache_repos = {}
@@ -638,7 +644,9 @@ class Morphe:
     def make_options(self) -> list[Path]:
         repo_options_locations = []
 
-        for repo in self.repo_search:     
+        for repo in self.repo_search:
+            if repo not in self.repo_details:
+                continue
             cached_repo = self.get_cached_repo(repo)  
 
             if not cached_repo:
@@ -814,6 +822,8 @@ class Morphe:
         logger.info(f"\n[*] Creating merged options.json for {package_name}...")
 
         for repo in repos:
+            if repo not in self.repo_details:
+                continue
             logger.info(f" ├── Merging {repo}...")
             owner = self.repo_details[repo]['owner']
             options_file = app_options_dir / f"{owner}_options.json"
@@ -883,6 +893,8 @@ class Morphe:
 
     def get_sha(self, repo: str, package_name: str) -> set[str]:
         shas = set()
+        if repo not in self.repo_details:
+            return shas
         owner = self.repo_details[repo]['owner']
         options_file = self.options_dir / package_name / f"{owner}_options.json"
 
@@ -1079,13 +1091,18 @@ class Morphe:
             self.validate_patch_conflicts(package_name, options_to_use)
             logger.debug("run == 1")
         if run == 2:
-            target_tuple = tuple(int(x) for x in target_version.split("."))
+            try:
+                target_tuple = tuple(int(x) for x in target_version.split("."))
+            except Exception:
+                target_tuple = (0, 0, 0)
             repo_per_version = self.check_repo_per_version(enabled_patches_per_app_versions[package_name])
             logger.debug(f"Check options to use, repo per version: {repo_per_version}")
             if latest:
-                repos = repo_per_version[(0, 0, 0)] 
+                repos = repo_per_version.get((0, 0, 0), set()) 
             else:
-                repos = repo_per_version[target_tuple]
+                repos = repo_per_version.get(target_tuple, set())
+                if not repos and (0, 0, 0) in repo_per_version:
+                    repos = repo_per_version[(0, 0, 0)]
             options_to_use = self.merge_target_repos(package_name, repos, target_version)
             self.check_aliase_clash(package_name, target_version, enabled_patches_per_app_versions[package_name], options_to_use)
             self.validate_patch_conflicts(package_name, options_to_use)
@@ -1156,6 +1173,8 @@ class Morphe:
             dest = "one_repo" 
 
         for repo in repos:
+            if repo not in self.repo_details:
+                continue
             owner = self.repo_details[repo]['owner']
             repo_name = self.repo_details[repo]['repo_name']
 
