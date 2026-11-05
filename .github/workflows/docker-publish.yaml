@@ -2,6 +2,23 @@ name: Build and Publish Docker Image
 
 on:
   push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'requirements.txt'
+      - 'web/**'
+      - 'scripts/**'
+      - '.github/workflows/docker-publish.yaml'
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'tools/morpheflow-data/**'
+      - 'data/**'
+      - 'apks/**'
+      - 'config/**'
+      - 'patches/**'
+      - '.github/workflows/morpheflow-cloud-builder.yaml'
     tags:
       - 'v*.*.*'
   workflow_dispatch:
