@@ -276,31 +276,31 @@ jobs:
               
               echo "[*] Publishing clean canonical release for ${app_name}: ${PER_APP_TAG}"
               PER_APP_NOTES="/tmp/per_app_notes_${pkg_dir}.md"
-              cat <<EOF > "$PER_APP_NOTES"
-# ${app_name} (\`${pkg_dir}\`) v${ver_dir}
-
-Latest patched build for **${app_name}** (\`${pkg_dir}\`) version \`${ver_dir}\`.
-
-### 📦 Asset Details
-- **Binary:** \`${fname}\`
-- **Package:** \`${pkg_dir}\`
-- **Version:** \`v${ver_dir}\`
-- **Architecture:** \`arm64-v8a\`
-- **SHA-256:** \`${SHA256}\`
-- **VirusTotal Report:** [🛡️ View Scan Analysis](${VT_URL})
-
-### 📲 Instant 1-Click Install in Obtainium
-👉 [**📲 Add to Obtainium**](${OBTAINIUM_URL})
-
-*(Tapping the button above automatically opens Obtainium with all update filters, version extraction, and fallback rules pre-configured!)*
-
-### 🔗 Tracking & Downloads
-- **Direct Download:** [${fname}](https://github.com/${REPO}/releases/download/${PER_APP_TAG}/${fname})
-- **Manual Obtainium Source URL:** \`https://github.com/${REPO}/releases/tag/${PER_APP_TAG}\`
-- **Web Portal:** [https://morpheflow.w161112218.workers.dev](https://morpheflow.w161112218.workers.dev)
-
-> 🔒 **Private Repository Note:** If your repository is private, ensure your GitHub Personal Access Token (PAT) with \`repo\` scope is entered in Obtainium: **Settings** ➔ **App Sources** ➔ **GitHub**.
-EOF
+              {
+                echo "# ${app_name} (\`${pkg_dir}\`) v${ver_dir}"
+                echo ""
+                echo "Latest patched build for **${app_name}** (\`${pkg_dir}\`) version \`${ver_dir}\`."
+                echo ""
+                echo "### 📦 Asset Details"
+                echo "- **Binary:** \`${fname}\`"
+                echo "- **Package:** \`${pkg_dir}\`"
+                echo "- **Version:** \`v${ver_dir}\`"
+                echo "- **Architecture:** \`arm64-v8a\`"
+                echo "- **SHA-256:** \`${SHA256}\`"
+                echo "- **VirusTotal Report:** [🛡️ View Scan Analysis](${VT_URL})"
+                echo ""
+                echo "### 📲 Instant 1-Click Install in Obtainium"
+                echo "👉 [**📲 Add to Obtainium**](${OBTAINIUM_URL})"
+                echo ""
+                echo "*(Tapping the button above automatically opens Obtainium with all update filters, version extraction, and fallback rules pre-configured!)*"
+                echo ""
+                echo "### 🔗 Tracking & Downloads"
+                echo "- **Direct Download:** [${fname}](https://github.com/${REPO}/releases/download/${PER_APP_TAG}/${fname})"
+                echo "- **Manual Obtainium Source URL:** \`https://github.com/${REPO}/releases/tag/${PER_APP_TAG}\`"
+                echo "- **Web Portal:** [https://morpheflow.w161112218.workers.dev](https://morpheflow.w161112218.workers.dev)"
+                echo ""
+                echo "> 🔒 **Private Repository Note:** If your repository is private, ensure your GitHub Personal Access Token (PAT) with \`repo\` scope is entered in Obtainium: **Settings** ➔ **App Sources** ➔ **GitHub**."
+              } > "$PER_APP_NOTES"
 
               if gh release view "${PER_APP_TAG}" -R "${REPO}" >/dev/null 2>&1; then
                 gh release edit "${PER_APP_TAG}" -R "${REPO}" \
