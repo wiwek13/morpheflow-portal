@@ -241,16 +241,7 @@ jobs:
           APK_FILES=$(find apps/patched -name "*.apk" -size +1M 2>/dev/null || true)
           
           if [ -n "$APK_FILES" ]; then
-            DATE_TAG="build-$(date +%Y%m%d-%H%M%S)"
-            echo "TAG=$DATE_TAG" >> $GITHUB_OUTPUT
             REPO="${{ github.repository }}"
-            
-            NOTES_FILE="release_notes_${DATE_TAG}.md"
-            echo "## 🚀 MorpheFlow Cloud Build \`${DATE_TAG}\`" > "$NOTES_FILE"
-            echo "" >> "$NOTES_FILE"
-            echo "🌐 **MorpheFlow Web Portal:** [https://morpheflow.w161112218.workers.dev](https://morpheflow.w161112218.workers.dev) | 🐙 **GitHub Repository:** [wiwek13/MorpheFlow](https://github.com/${REPO})" >> "$NOTES_FILE"
-            echo "" >> "$NOTES_FILE"
-            echo "### 📦 Newly Built APKs in this Release:" >> "$NOTES_FILE"
             
             for apk in $APK_FILES; do
               fname=$(basename "$apk")
@@ -262,7 +253,6 @@ jobs:
                 app_name=$(python3 -c "import yaml; c=yaml.safe_load(open('tools/morpheflow-data/config.yaml')) if os.path.exists('tools/morpheflow-data/config.yaml') else {}; print(next((p.get('package_name') or p.get('name') for p in c.get('packages',[]) if (p.get('package') or p.get('package_name')) == '${pkg_dir}'), ''))" 2>/dev/null || true)
               fi
               if [ -z "$app_name" ] || [ "$app_name" = "None" ]; then
-                # Fallback to capitalized last segment (e.g. latin -> Latin)
                 app_name=$(echo "${pkg_dir}" | awk -F. '{print $NF}' | sed 's/^[a-z]/\U&/')
               fi
               if [ "$pkg_dir" = "com.google.android.inputmethod.latin" ]; then app_name="Gboard"; fi
@@ -275,36 +265,43 @@ jobs:
               if [ "$pkg_dir" = "com.sbs.train" ]; then app_name="MacroFactor Workouts"; fi
               if [ "$pkg_dir" = "com.sbs.diet" ]; then app_name="MacroFactor"; fi
               if [ "$pkg_dir" = "com.tantantribe.tribe" ]; then app_name="Tantan"; fi
+              if [ "$pkg_dir" = "com.spocky.projengmenu" ]; then app_name="Projectivy Launcher"; fi
               
               PER_APP_TAG="app-${pkg_dir}"
               OBTAINIUM_URL=$(python3 scripts/obtainium_link.py --pkg "${pkg_dir}" --name "${app_name}" --repo "${REPO}")
-
-              echo "" >> "$NOTES_FILE"
-              echo "- **${app_name}** (\`${pkg_dir}\`) - \`v${ver_dir}\`" >> "$NOTES_FILE"
-              echo "  - **File:** \`${fname}\`" >> "$NOTES_FILE"
-              echo "  - **Direct Download:** [${fname}](https://github.com/${REPO}/releases/download/${DATE_TAG}/${fname})" >> "$NOTES_FILE"
-              echo "  - **Obtainium Source URL:** \`https://github.com/${REPO}/releases/tag/${PER_APP_TAG}\`" >> "$NOTES_FILE"
-              echo "  - 👉 [**📲 Add to Obtainium**](${OBTAINIUM_URL})" >> "$NOTES_FILE"
               
-              # 1. Update rolling Per-App Release for Obtainium (in-place update to prevent eventual consistency race)
-              echo "[*] Publishing rolling per-app release: ${PER_APP_TAG}"
+              # Calculate sha256
+              SHA256=$(sha256sum "$apk" | awk '{print $1}')
+              VT_URL="https://www.virustotal.com/gui/file/${SHA256}"
+              
+              echo "[*] Publishing clean canonical release for ${app_name}: ${PER_APP_TAG}"
               PER_APP_NOTES="/tmp/per_app_notes_${pkg_dir}.md"
-              echo "Latest patched build for **${app_name}** (\`${pkg_dir}\`) version \`${ver_dir}\`." > "$PER_APP_NOTES"
-              echo "" >> "$PER_APP_NOTES"
-              echo "🌐 **MorpheFlow Web Portal:** [https://morpheflow.w161112218.workers.dev](https://morpheflow.w161112218.workers.dev)" >> "$PER_APP_NOTES"
-              echo "" >> "$PER_APP_NOTES"
-              echo "### 📲 One-Click Install / Track in Obtainium:" >> "$PER_APP_NOTES"
-              echo "👉 [**📲 Add to Obtainium**](${OBTAINIUM_URL})" >> "$PER_APP_NOTES"
-              echo "" >> "$PER_APP_NOTES"
-              echo "*(Tapping this on your phone opens Obtainium directly with all filters and release fallback pre-configured!)*" >> "$PER_APP_NOTES"
-              echo "" >> "$PER_APP_NOTES"
-              echo "---" >> "$PER_APP_NOTES"
-              echo "" >> "$PER_APP_NOTES"
-              echo "### Manual Tracking URL:" >> "$PER_APP_NOTES"
-              echo "\`https://github.com/${REPO}/releases/tag/${PER_APP_TAG}\`" >> "$PER_APP_NOTES"
-              echo "" >> "$PER_APP_NOTES"
-              echo "> **Note for Private Repo:** Ensure your GitHub Personal Access Token (PAT) is saved in Obtainium: **Settings** ➔ **App Sources** ➔ **GitHub**." >> "$PER_APP_NOTES"
-              
+              cat <<EOF > "$PER_APP_NOTES"
+# ${app_name} (\`${pkg_dir}\`) v${ver_dir}
+
+Latest patched build for **${app_name}** (\`${pkg_dir}\`) version \`${ver_dir}\`.
+
+### 📦 Asset Details
+- **Binary:** \`${fname}\`
+- **Package:** \`${pkg_dir}\`
+- **Version:** \`v${ver_dir}\`
+- **Architecture:** \`arm64-v8a\`
+- **SHA-256:** \`${SHA256}\`
+- **VirusTotal Report:** [🛡️ View Scan Analysis](${VT_URL})
+
+### 📲 Instant 1-Click Install in Obtainium
+👉 [**📲 Add to Obtainium**](${OBTAINIUM_URL})
+
+*(Tapping the button above automatically opens Obtainium with all update filters, version extraction, and fallback rules pre-configured!)*
+
+### 🔗 Tracking & Downloads
+- **Direct Download:** [${fname}](https://github.com/${REPO}/releases/download/${PER_APP_TAG}/${fname})
+- **Manual Obtainium Source URL:** \`https://github.com/${REPO}/releases/tag/${PER_APP_TAG}\`
+- **Web Portal:** [https://morpheflow.w161112218.workers.dev](https://morpheflow.w161112218.workers.dev)
+
+> 🔒 **Private Repository Note:** If your repository is private, ensure your GitHub Personal Access Token (PAT) with \`repo\` scope is entered in Obtainium: **Settings** ➔ **App Sources** ➔ **GitHub**.
+EOF
+
               if gh release view "${PER_APP_TAG}" -R "${REPO}" >/dev/null 2>&1; then
                 gh release edit "${PER_APP_TAG}" -R "${REPO}" \
                   --title "${app_name} (${pkg_dir}) v${ver_dir}" \
@@ -317,44 +314,10 @@ jobs:
                   --latest=false || gh release upload "${PER_APP_TAG}" "$apk" -R "${REPO}" --clobber
               fi
               rm -f "$PER_APP_NOTES"
-                
-              # 2. Also create permanent versioned tag (e.g. com.reddit.frontpage-v2026.24.0)
-              VER_TAG="${pkg_dir}-v${ver_dir}"
-              if ! gh release view "${VER_TAG}" -R "${REPO}" >/dev/null 2>&1; then
-                gh release create "${VER_TAG}" "$apk" -R "${REPO}" \
-                  --title "${app_name} (${pkg_dir}) v${ver_dir}" \
-                  --notes "Versioned release of ${app_name} (${pkg_dir}) v${ver_dir}." \
-                  --latest=false 2>/dev/null || true
-              fi
             done
             
-            echo "" >> "$NOTES_FILE"
-            echo "---" >> "$NOTES_FILE"
-            echo "### 📲 Obtainium Setup Guide:" >> "$NOTES_FILE"
-            echo "To track and automatically update each app individually in Obtainium:" >> "$NOTES_FILE"
-            echo "1. Tap the **📲 Add to Obtainium** link next to the app above for instant 1-click configuration." >> "$NOTES_FILE"
-            echo "2. Alternatively, open Obtainium, tap **Add App**, and paste the **Obtainium Source URL** for the app (e.g. \`https://github.com/${REPO}/releases/tag/app-com.reddit.frontpage\`)." >> "$NOTES_FILE"
-            echo "3. Obtainium will track that app's dedicated release tag and notify you whenever a new version is compiled!" >> "$NOTES_FILE"
-            
-            # 3. Create unified batch release
-            gh release create "$DATE_TAG" $APK_FILES \
-              --title "MorpheFlow Build $DATE_TAG" \
-              --notes-file "$NOTES_FILE" \
-              --latest
-              
-            echo "RELEASE_URL=https://github.com/${REPO}/releases/tag/$DATE_TAG" >> $GITHUB_OUTPUT
-
-            # 4. Prune obsolete timestamped build releases, keeping only the 5 newest
-            echo "[*] Pruning obsolete timestamped build releases..."
-            gh release list -R "${REPO}" --limit 100 --json tagName | \
-              jq -r '.[].tagName | select(startswith("build-"))' | \
-              sed -e '1,5d' | \
-              while read -r old_tag; do
-                if [ -n "$old_tag" ]; then
-                  echo "Pruning old build release: $old_tag"
-                  gh release delete "$old_tag" -R "${REPO}" --yes --cleanup-tag || true
-                fi
-              done
+            echo "TAG=app-${pkg_dir}" >> $GITHUB_OUTPUT
+            echo "RELEASE_URL=https://github.com/${REPO}/releases" >> $GITHUB_OUTPUT
           else
             echo "[!] No new APKs needed building. All tracked apps are up to date."
             echo "TAG=" >> $GITHUB_OUTPUT
@@ -393,7 +356,7 @@ jobs:
               pkg = apk.parent.parent.name
               ver = apk.parent.name
               sz = apk.stat().st_size
-              dl_url = f'https://github.com/{repo}/releases/download/{tag}/{apk.name}' if tag else ''
+              dl_url = f'https://github.com/{repo}/releases/download/app-{pkg}/{apk.name}'
               
               h = hashlib.sha256()
               with open(apk, 'rb') as af:
@@ -425,7 +388,7 @@ jobs:
                   'size_bytes': sz,
                   'sha256': sha256_hash,
                   'download_url': dl_url,
-                  'release_url': f'https://github.com/{repo}/releases/tag/{tag}' if tag else None,
+                  'release_url': f'https://github.com/{repo}/releases/tag/app-{pkg}',
                   'applied_patches': applied_patches,
                   'result_json': res_json,
               })
