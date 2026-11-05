@@ -10,15 +10,14 @@ on:
       - 'web/**'
       - 'scripts/**'
       - '.github/workflows/docker-publish.yaml'
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'tools/morpheflow-data/**'
-      - 'data/**'
-      - 'apks/**'
-      - 'config/**'
-      - 'patches/**'
-      - '.github/workflows/morpheflow-cloud-builder.yaml'
+      - '!tools/morpheflow-data/**'
+      - '!data/**'
+      - '!apks/**'
+      - '!config/**'
+      - '!patches/**'
+      - '!*.md'
+      - '!docs/**'
+      - '!.github/workflows/morpheflow-cloud-builder.yaml'
     tags:
       - 'v*.*.*'
   workflow_dispatch:
