@@ -34,4 +34,16 @@ test('Patch Conflicts: Rules and detector identify conflicting bytecode patches'
     morphePy.includes('KNOWN_PATCH_CONFLICTS'),
     'morphe.py must have KNOWN_PATCH_CONFLICTS definitions'
   );
+  assert.ok(
+    morphePy.includes('def _extract_failed_patch_name'),
+    'morphe.py must define _extract_failed_patch_name'
+  );
+  assert.ok(
+    morphePy.includes('def _disable_patch_in_options'),
+    'morphe.py must define _disable_patch_in_options'
+  );
+  assert.ok(
+    morphePy.includes('Auto-Recover'),
+    'morphe.py must log Auto-Recover on patch compilation retry'
+  );
 });

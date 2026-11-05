@@ -1083,6 +1083,94 @@ class Morphe:
         except Exception as e:
             logger.debug(f"Conflict validation skipped for {package_name}: {e}")
 
+    def _extract_failed_patch_name(self, log_text: str) -> str | None:
+        """
+        Parses Morphe / ReVanced CLI error output to detect which specific patch failed bytecode execution.
+        Examples:
+          - 'ERROR: Failed: Disable tracking'
+          - 'Failed to execute patch Disable tracking'
+          - 'An error occurred while executing Disable tracking:'
+        """
+        if not log_text:
+            return None
+        patterns = [
+            r"ERROR:\s*Failed:\s*([^\r\n]+)",
+            r"Failed to execute patch\s*['\"]?([^'\"\r\n]+)['\"]?",
+            r"An error occurred while executing\s*['\"]?([^'\"\r\n:]+)",
+            r"ERROR:\s*([^\r\n:]+?)\s+failed",
+        ]
+        for pat in patterns:
+            match = re.search(pat, log_text, re.IGNORECASE)
+            if match:
+                candidate = match.group(1).strip().strip("'\"").rstrip(".:")
+                if candidate:
+                    return candidate
+        return None
+
+    def _disable_patch_in_options(self, options_file: Path, failed_patch_candidate: str) -> bool:
+        """
+        Scans options JSON file, disables the failing patch, and ensures at least one patch remains enabled.
+        Returns True if the patch was found and disabled AND at least one other patch remains active.
+        """
+        if not options_file or not options_file.is_file():
+            return False
+        try:
+            with open(options_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            bundles = data if isinstance(data, list) else [data]
+            ct = failed_patch_candidate.strip().lower()
+            matched_name = None
+
+            for b in bundles:
+                if not isinstance(b, dict):
+                    continue
+                patches = b.get("patches", {})
+                if not isinstance(patches, dict):
+                    continue
+                for p_key, p_val in patches.items():
+                    pk = p_key.strip().lower()
+                    # Check exact match, normalized space/dash match, prefix match or substring
+                    is_match = (
+                        pk == ct or
+                        pk.replace("-", " ") == ct.replace("-", " ") or
+                        ct.startswith(pk + ":") or
+                        ct.startswith(pk + " (") or
+                        ct.startswith(pk + " -") or
+                        (len(pk) >= 4 and pk in ct)
+                    )
+                    if is_match and isinstance(p_val, dict) and p_val.get("enabled", True):
+                        p_val["enabled"] = False
+                        matched_name = p_key
+
+            if not matched_name:
+                return False
+
+            # Check if any enabled patch remains in any bundle
+            remaining_enabled = []
+            for b in bundles:
+                if not isinstance(b, dict):
+                    continue
+                patches = b.get("patches", {})
+                if isinstance(patches, dict):
+                    for pk, pv in patches.items():
+                        if isinstance(pv, dict) and pv.get("enabled", False):
+                            remaining_enabled.append(pk)
+
+            if remaining_enabled:
+                with open(options_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                logger.warning(
+                    f" └── [⚠️ Auto-Recover] Disabled failing patch '{matched_name}'. "
+                    f"Active patches remaining ({len(remaining_enabled)}): {remaining_enabled}"
+                )
+                return True
+            else:
+                logger.warning(f" └── [!] Cannot auto-recover: no remaining enabled patches left in {options_file.name}")
+                return False
+        except Exception as ex:
+            logger.debug(f"Failed to auto-disable patch {failed_patch_candidate}: {ex}")
+            return False
+
     def check_options_to_use(self, package_name: str, target_version: str, latest: bool, enabled_patches_per_app_versions: dict, run: int) -> tuple[set[str], Path]:
         if run == 1:
             repos = self.check_repo_reqs(enabled_patches_per_app_versions[package_name], target_version)
@@ -1236,38 +1324,57 @@ class Morphe:
 
         cmd += ["--out", str(output_dest), str(input_package)]
 
-        try:
-            logger.info(f"[*] Attempting to patch package: {package_name}, version: {version_name}...")
-            logger.debug(f"Patch command:\n{cmd}\n")
-            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=900)
+        max_patch_retries = 5
+        attempt_retry = 0
 
-            if output_dest.is_file():
-                logger.info(f" └── [✓] Successfully patched {package_name} v{version_name}")
-                self.write_patched_json(package_name, version_name, repos, strat, attempt, options_to_use, output_dest, result_dest, patch_id)
-                return True, output_dest, None
-            else:
-                logger.error(" └── [!] Java exited with code 0, but output APK was not found.")
-                return False, dest, "Java exited with code 0, but output APK was not found."
+        while attempt_retry < max_patch_retries:
+            try:
+                if attempt_retry > 0:
+                    logger.info(f"[*] Retrying patch for {package_name} v{version_name} (attempt {attempt_retry + 1}/{max_patch_retries})...")
+                else:
+                    logger.info(f"[*] Attempting to patch package: {package_name}, version: {version_name}...")
+                logger.debug(f"Patch command:\n{cmd}\n")
+                subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=900)
 
-        except subprocess.TimeoutExpired:
-            logger.error(" └── [!] Morphe CLI process timed out after 15 minutes.")
-            return False, dest, "Morphe CLI process timed out after 15 minutes."
+                if output_dest.is_file():
+                    logger.info(f" └── [✓] Successfully patched {package_name} v{version_name}")
+                    self.write_patched_json(package_name, version_name, repos, strat, attempt, options_to_use, output_dest, result_dest, patch_id)
+                    return True, output_dest, None
+                else:
+                    logger.error(" └── [!] Java exited with code 0, but output APK was not found.")
+                    return False, dest, "Java exited with code 0, but output APK was not found."
 
-        except subprocess.CalledProcessError as e:
-            if e.returncode in (130, 143, -2, -15, -9) or e.returncode < 0:
+            except subprocess.TimeoutExpired:
+                logger.error(" └── [!] Morphe CLI process timed out after 15 minutes.")
+                return False, dest, "Morphe CLI process timed out after 15 minutes."
+
+            except subprocess.CalledProcessError as e:
+                if e.returncode in (130, 143, -2, -15, -9) or e.returncode < 0:
+                    logger.critical("\n └── [!] Patch process cancelled by user.")
+                    raise KeyboardInterrupt("Patching interrupted by user")
+
+                combined_logs = f"{e.stderr or ''}\n{e.stdout or ''}"
+                error_msg = next((line.strip() for line in (e.stderr or e.stdout or "").splitlines() if line.strip()), "Unknown CLI error")
+                logger.error(f" └── [!] Morphe CLI failed (exit code {e.returncode}): {error_msg}")
+
+                # Auto-recovery: If a specific patch caused the failure, disable it and retry compilation
+                failed_patch = self._extract_failed_patch_name(combined_logs)
+                if failed_patch and attempt_retry < max_patch_retries - 1:
+                    if self._disable_patch_in_options(options_to_use, failed_patch):
+                        output_dest.unlink(missing_ok=True)
+                        result_dest.unlink(missing_ok=True)
+                        attempt_retry += 1
+                        continue
+
+                return False, dest, f"Morphe CLI failed (exit code {e.returncode}): {error_msg}"
+
+            except FileNotFoundError:
+                logger.error(" └── [!] Java executable not found. Ensure Java is installed and on your PATH.")
+                return False, dest, "Java executable not found."
+
+            except KeyboardInterrupt:
                 logger.critical("\n └── [!] Patch process cancelled by user.")
-                raise KeyboardInterrupt("Patching interrupted by user")
-            error_msg = next((line.strip() for line in e.stderr.splitlines() if line.strip()), "Unknown CLI error") if e.stderr else "Unknown CLI error"
-            logger.error(f" └── [!] Morphe CLI failed (exit code {e.returncode}): {error_msg}")
-            return False, dest, f"Morphe CLI failed (exit code {e.returncode}): {error_msg}"
-
-        except FileNotFoundError:
-            logger.error(" └── [!] Java executable not found. Ensure Java is installed and on your PATH.")
-            return False, dest, "Java executable not found."
-
-        except KeyboardInterrupt:
-            logger.critical("\n └── [!] Patch process cancelled by user.")
-            raise
+                raise
 
 #################################
 #      Write Patched Json       #
