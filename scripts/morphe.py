@@ -822,11 +822,14 @@ class Morphe:
         logger.info(f"\n[*] Creating merged options.json for {package_name}...")
 
         for repo in repos:
-            if repo not in self.repo_details:
+            details = self._find_repo_details(repo)
+            if not details:
                 continue
             logger.info(f" ├── Merging {repo}...")
-            owner = self.repo_details[repo]['owner']
+            owner = details['owner']
             options_file = app_options_dir / f"{owner}_options.json"
+            if not options_file.is_file():
+                continue
 
             with open(options_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -891,12 +894,27 @@ class Morphe:
         with open(options_to_use, "w", encoding="utf-8") as f:
             json.dump(entries, f, indent=2)
 
+    def _find_repo_details(self, repo: str) -> dict | None:
+        if repo in self.repo_details:
+            return self.repo_details[repo]
+        clean_slug = repo.replace("https://github.com/", "").replace("https://gitlab.com/", "").strip("/")
+        for r_key, details in self.repo_details.items():
+            k_slug = r_key.replace("https://github.com/", "").replace("https://gitlab.com/", "").strip("/")
+            if k_slug.lower() == clean_slug.lower():
+                return details
+            if details.get("owner", "").lower() == clean_slug.split("/")[0].lower():
+                return details
+        return None
+
     def get_sha(self, repo: str, package_name: str) -> set[str]:
         shas = set()
-        if repo not in self.repo_details:
+        details = self._find_repo_details(repo)
+        if not details:
             return shas
-        owner = self.repo_details[repo]['owner']
+        owner = details['owner']
         options_file = self.options_dir / package_name / f"{owner}_options.json"
+        if not options_file.is_file():
+            return shas
 
         with open(options_file, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -1111,6 +1129,7 @@ class Morphe:
         """
         Scans options JSON file, disables the failing patch, and ensures at least one patch remains enabled.
         Returns True if the patch was found and disabled AND at least one other patch remains active.
+        If multiple bundles supply the same patch, disables only the first one to allow alternative bundles to try.
         """
         if not options_file or not options_file.is_file():
             return False
@@ -1119,9 +1138,9 @@ class Morphe:
                 data = json.load(f)
             bundles = data if isinstance(data, list) else [data]
             ct = failed_patch_candidate.strip().lower()
-            matched_name = None
 
-            for b in bundles:
+            matching_entries = []
+            for b_idx, b in enumerate(bundles):
                 if not isinstance(b, dict):
                     continue
                 patches = b.get("patches", {})
@@ -1129,7 +1148,6 @@ class Morphe:
                     continue
                 for p_key, p_val in patches.items():
                     pk = p_key.strip().lower()
-                    # Check exact match, normalized space/dash match, prefix match or substring
                     is_match = (
                         pk == ct or
                         pk.replace("-", " ") == ct.replace("-", " ") or
@@ -1139,11 +1157,14 @@ class Morphe:
                         (len(pk) >= 4 and pk in ct)
                     )
                     if is_match and isinstance(p_val, dict) and p_val.get("enabled", True):
-                        p_val["enabled"] = False
-                        matched_name = p_key
+                        matching_entries.append((b_idx, p_key, p_val))
 
-            if not matched_name:
+            if not matching_entries:
                 return False
+
+            # Disable the first active occurrence
+            b_idx, matched_name, p_val = matching_entries[0]
+            p_val["enabled"] = False
 
             # Check if any enabled patch remains in any bundle
             remaining_enabled = []
@@ -1160,7 +1181,7 @@ class Morphe:
                 with open(options_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
                 logger.warning(
-                    f" └── [⚠️ Auto-Recover] Disabled failing patch '{matched_name}'. "
+                    f" └── [⚠️ Auto-Recover] Disabled failing patch '{matched_name}' in bundle #{b_idx + 1}. "
                     f"Active patches remaining ({len(remaining_enabled)}): {remaining_enabled}"
                 )
                 return True
@@ -1180,17 +1201,29 @@ class Morphe:
             logger.debug("run == 1")
         if run == 2:
             try:
-                target_tuple = tuple(int(x) for x in target_version.split("."))
+                target_tuple = parse_version_tuple(target_version)
             except Exception:
-                target_tuple = (0, 0, 0)
+                target_tuple = (0, 0, 0, 1, 0)
             repo_per_version = self.check_repo_per_version(enabled_patches_per_app_versions[package_name])
             logger.debug(f"Check options to use, repo per version: {repo_per_version}")
             if latest:
-                repos = repo_per_version.get((0, 0, 0), set()) 
+                repos = repo_per_version.get((0, 0, 0, 1, 0), set()) or repo_per_version.get((0, 0, 0), set())
             else:
-                repos = repo_per_version.get(target_tuple, set())
-                if not repos and (0, 0, 0) in repo_per_version:
-                    repos = repo_per_version[(0, 0, 0)]
+                repos = set()
+                # 1. Exact tuple match
+                if target_tuple in repo_per_version:
+                    repos.update(repo_per_version[target_tuple])
+                # 2. Major.minor match (e.g. 4.71 matching 4.71.0)
+                if not repos:
+                    for k, r_set in repo_per_version.items():
+                        if isinstance(k, tuple) and k[:2] == target_tuple[:2]:
+                            repos.update(r_set)
+                # 3. Universal fallback (0, 0, 0)
+                if not repos:
+                    for k, r_set in repo_per_version.items():
+                        if isinstance(k, tuple) and k[:3] == (0, 0, 0):
+                            repos.update(r_set)
+
             options_to_use = self.merge_target_repos(package_name, repos, target_version)
             self.check_aliase_clash(package_name, target_version, enabled_patches_per_app_versions[package_name], options_to_use)
             self.validate_patch_conflicts(package_name, options_to_use)
