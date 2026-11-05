@@ -1164,6 +1164,23 @@ def get_uptodown_app_url(package_name: str) -> str | None:
     candidates = []
     search_queries = []
 
+    # Priority 1: Exact Package Name Probing & Search (Package-First)
+    candidates.append(f"https://{package_name.replace('.', '-')}.en.uptodown.com/android")
+    generic_stop = {"android", "app", "apps", "com", "net", "org", "mobile", "client", "free"}
+    meaningful_parts = [p for p in parts if p.lower() not in generic_stop and len(p) >= 3]
+    if meaningful_parts:
+        candidates.append(f"https://{meaningful_parts[-1]}.en.uptodown.com/android")
+        candidates.append(f"https://{meaningful_parts[0]}.en.uptodown.com/android")
+        if len(meaningful_parts) >= 2:
+            candidates.append(f"https://{meaningful_parts[0]}-{meaningful_parts[1]}.en.uptodown.com/android")
+            candidates.append(f"https://{meaningful_parts[-2]}-{meaningful_parts[-1]}.en.uptodown.com/android")
+        search_queries.append(meaningful_parts[-1])
+        search_queries.append(meaningful_parts[0])
+
+    search_queries.append(package_name)
+    search_queries.append(package_name.replace(".", " "))
+
+    # Priority 2: Fallback to Friendly App Title
     app_title = resolve_app_title(package_name)
     if app_title:
         # Split title by common delimiters: e.g. "Water Tracker - Hydro Coach", "Ninja VPN: Fast & Secure"
@@ -1192,6 +1209,10 @@ def get_uptodown_app_url(package_name: str) -> str | None:
                 if len(words) > 2:
                     candidates.append(f"https://{'-'.join(words[-3:])}.en.uptodown.com/android")
                 search_queries.append(" ".join(words[-2:]))
+            # Also include cleaned title without punctuation to avoid confusing Uptodown's search engine
+            clean_full_title = re.sub(r"[-:|–—()]+", " ", app_title).strip()
+            search_queries.append(clean_full_title)
+            search_queries.append(app_title)
     else:
         # Fallback to APKCombo slug if Google Play title resolution was unavailable (e.g. delisted apps)
         combo_slug = get_apkcombo_slug(package_name)
@@ -1199,20 +1220,6 @@ def get_uptodown_app_url(package_name: str) -> str | None:
             candidates.append(f"https://{combo_slug}.en.uptodown.com/android")
             search_queries.append(combo_slug.replace("-", " "))
             search_queries.append(combo_slug)
-
-    # Add meaningful package segments, avoiding generic stop words like 'android' or 'app'
-    generic_stop = {"android", "app", "apps", "com", "net", "org", "mobile", "client", "free"}
-    meaningful_parts = [p for p in parts if p.lower() not in generic_stop and len(p) >= 3]
-    if meaningful_parts:
-        candidates.append(f"https://{meaningful_parts[-1]}.en.uptodown.com/android")
-        candidates.append(f"https://{meaningful_parts[0]}.en.uptodown.com/android")
-        if len(meaningful_parts) >= 2:
-            candidates.append(f"https://{meaningful_parts[0]}-{meaningful_parts[1]}.en.uptodown.com/android")
-            candidates.append(f"https://{meaningful_parts[-2]}-{meaningful_parts[-1]}.en.uptodown.com/android")
-        search_queries.append(meaningful_parts[-1])
-        search_queries.append(meaningful_parts[0])
-
-    candidates.append(f"https://{package_name.replace('.', '-')}.en.uptodown.com/android")
 
     # 1. Direct candidate URL probing with verified package name check
     for url in dict.fromkeys(candidates):
@@ -1226,14 +1233,7 @@ def get_uptodown_app_url(package_name: str) -> str | None:
         except Exception:
             pass
 
-    # 2. Search endpoint fallback
-    if app_title:
-        # Also include cleaned title without punctuation to avoid confusing Uptodown's search engine
-        clean_full_title = re.sub(r"[-:|–—()]+", " ", app_title).strip()
-        search_queries.append(clean_full_title)
-        search_queries.append(app_title)
-    search_queries.append(package_name.replace(".", " "))
-
+    # 2. Search endpoint fallback (querying package-first candidates)
     for q in dict.fromkeys(search_queries):
         if not q or len(q) < 3:
             continue

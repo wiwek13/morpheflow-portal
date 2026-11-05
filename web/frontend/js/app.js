@@ -797,6 +797,7 @@ async function loadConfig() {
     if (!res.ok) throw new Error('Config load failed');
     const data = await res.json();
     state.config = data;
+    state.appSources = data.app_sources || {};
     const packages = data.packages || data.apps || [];
     state.configuredApps = packages;
 
@@ -4549,6 +4550,94 @@ function closeAppDrawer(e) {
   currentDrawerSearchFilter = '';
 }
 
+function renderBaseApkSourceCard(pkg, src, recVer) {
+  const currentType = (src && src.type) || (src && src.url ? 'direct' : 'auto');
+  const repo = (src && src.repo) || '';
+  const pattern = (src && (src.asset_pattern || src.pattern)) || '';
+  const directUrl = (src && src.url) || '';
+
+  return `
+    <div class="form-group" style="padding: 0.875rem; background: var(--surface-sunken); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); margin-bottom: 0.875rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+        <div>
+          <span style="font-size: 0.8125rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.375rem;">
+            <span>📦 Upstream Base APK Source</span>
+          </span>
+          <div style="font-size: 0.6875rem; color: var(--text-secondary); margin-top: 2px;">
+            Target: <code style="color: var(--accent-base); font-size: 0.6875rem;">${escapeHtml(pkg)}</code> (v${escapeHtml(recVer)})
+          </div>
+        </div>
+        <span class="badge ${currentType !== 'auto' ? 'badge-accent' : ''}" style="font-size: 0.625rem; font-weight: 600;">
+          ${escapeHtml(currentType.toUpperCase())}
+        </span>
+      </div>
+
+      <!-- Source Provider Dropdown -->
+      <div style="margin-bottom: 0.625rem;">
+        <label class="form-label" style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.25rem;">Provider Choice</label>
+        <select id="drawer-app-source-type" class="form-select" onchange="onDrawerSourceTypeChanged()" style="font-size: 0.75rem; font-weight: 600; padding: 0.375rem 0.5rem; background: var(--surface-raised); border: 1px solid var(--border-medium); border-radius: var(--radius-sm); color: var(--text-primary); width: 100%;">
+          <option value="auto" ${currentType === 'auto' ? 'selected' : ''}>⚡ Auto-Detect (Package-First Smart Chain)</option>
+          <option value="github" ${currentType === 'github' ? 'selected' : ''}>🐙 GitHub Upstream Releases (e.g. spocky/miproja1)</option>
+          <option value="google_play" ${currentType === 'google_play' ? 'selected' : ''}>🛍️ Google Play / Aurora Store (goopdl)</option>
+          <option value="apkmirror" ${currentType === 'apkmirror' ? 'selected' : ''}>🪞 APKMirror</option>
+          <option value="apkpure" ${currentType === 'apkpure' ? 'selected' : ''}>📦 APKPure</option>
+          <option value="direct" ${currentType === 'direct' ? 'selected' : ''}>🔗 Custom Direct URL / Staged (base-apks)</option>
+        </select>
+      </div>
+
+      <!-- Mode 1: Auto-Detect / Store Info -->
+      <div id="drawer-source-fields-auto" style="display: ${(currentType === 'github' || currentType === 'direct') ? 'none' : 'block'}; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
+        <span>Searches by exact package <code style="font-size: 0.75rem;">${escapeHtml(pkg)}</code> first across providers, avoiding clone or misidentified apps.</span>
+      </div>
+
+      <!-- Mode 2: GitHub Releases Fields -->
+      <div id="drawer-source-fields-github" style="display: ${currentType === 'github' ? 'block' : 'none'}; margin-bottom: 0.5rem;">
+        <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+          <div>
+            <label class="form-label" style="font-size: 0.6875rem; color: var(--text-muted); margin-bottom: 0.125rem;">GitHub Repository (Owner/Repo)</label>
+            <input type="text" id="drawer-source-repo" class="form-input" style="font-size: 0.75rem; padding: 0.35rem 0.5rem; width: 100%; font-family: var(--font-mono);" placeholder="e.g. spocky/miproja1" value="${escapeHtml(repo)}">
+          </div>
+          <div>
+            <label class="form-label" style="font-size: 0.6875rem; color: var(--text-muted); margin-bottom: 0.125rem;">Asset Regex Pattern (Optional)</label>
+            <input type="text" id="drawer-source-pattern" class="form-input" style="font-size: 0.75rem; padding: 0.35rem 0.5rem; width: 100%; font-family: var(--font-mono);" placeholder="e.g. ^ProjectivyLauncher-.*\\.apk$" value="${escapeHtml(pattern)}">
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode 3: Custom Direct URL / Upload Fields -->
+      <div id="drawer-source-fields-direct" style="display: ${currentType === 'direct' ? 'block' : 'none'}; margin-bottom: 0.5rem;">
+        <div style="margin-bottom: 0.375rem;">
+          <label class="form-label" style="font-size: 0.6875rem; color: var(--text-muted); margin-bottom: 0.125rem;">Direct HTTP/HTTPS Download URL</label>
+          <input type="url" id="drawer-source-url" class="form-input" style="font-size: 0.75rem; padding: 0.35rem 0.5rem; width: 100%;" placeholder="https://example.com/base.apk" value="${escapeHtml(directUrl)}">
+        </div>
+        <div class="apk-dropzone" onclick="document.getElementById('drawer-apk-file-input').click()" style="padding: 0.75rem; text-align: center; cursor: pointer; border: 1px dashed var(--border-medium); border-radius: var(--radius-sm); background: var(--surface-raised); margin-top: 0.375rem;">
+          <img src="/apk-icon.png" alt="" width="32" height="32" style="width: 32px; height: 32px; margin-bottom: 0.375rem;" />
+          <span style="font-size: 0.75rem; font-weight: 500; display: block;">Select Local Base APK (.apk)</span>
+          <span style="font-size: 0.625rem; color: var(--text-muted);" id="drawer-apk-upload-status">Supported: Android ARM64 APK</span>
+          <input type="file" id="drawer-apk-file-input" accept=".apk" style="display: none;" onchange="handleCustomApkFileSelected('${escapeHtml(pkg)}', this.files[0])">
+        </div>
+        <div id="drawer-apk-progress-container" class="upload-progress-container" style="display: none; margin-top: 0.5rem;">
+          <div class="upload-progress-track"><div class="upload-progress-fill" id="drawer-apk-progress-bar"></div></div>
+          <span id="drawer-apk-progress-status-text" style="font-size: 0.6875rem;">Uploading…</span>
+        </div>
+      </div>
+
+      <!-- Verification & Action Controls -->
+      <div style="display: flex; align-items: center; gap: 0.375rem; margin-top: 0.625rem;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-drawer-verify-source" onclick="verifyDrawerSource('${escapeHtml(pkg)}')">
+          🔍 Verify Source
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveDrawerSource('${escapeHtml(pkg)}')">
+          💾 Save Source
+        </button>
+      </div>
+
+      <!-- Live Inline Verification Status Panel -->
+      <div id="drawer-source-verify-status" style="display: none;"></div>
+    </div>
+  `;
+}
+
 function renderDrawerBody(app) {
   const container = document.getElementById('drawer-body-content');
   if (!container) return;
@@ -4559,6 +4648,7 @@ function renderDrawerBody(app) {
   const targetArch = (app.options && app.options.target_arch) || 'arm64-v8a';
   const recVer = getRecommendedTargetVersion(pkg) || 'Community Recommended';
   const baseApkUrl = app.base_apk_url || (app.options && app.options.base_apk_url) || '';
+  const src = (state.appSources && state.appSources[pkg]) || { package: pkg, type: baseApkUrl ? 'direct' : 'auto', url: baseApkUrl };
 
   const reposHtml = repos.length > 0
     ? repos.map((r, idx) => `
@@ -4618,6 +4708,9 @@ function renderDrawerBody(app) {
         </div>
       </div>
 
+      <!-- Upstream Base APK Source Provider & Verifier -->
+      ${renderBaseApkSourceCard(pkg, src, recVer)}
+
       <!-- Deterministic Keystore Attached -->
       <div class="crypto-seal-card">
         <div style="font-size: 0.75rem; font-weight: 600; color: var(--status-success); margin-bottom: 0.25rem;">
@@ -4660,55 +4753,8 @@ function renderDrawerBody(app) {
   }
 
   container.innerHTML = `
-    <!-- Base APK Switcher (Morphe Mobile Studio) -->
-    <div class="form-group" style="padding: 0.875rem; background: var(--surface-sunken); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); margin-bottom: 0.875rem;">
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
-        <span style="font-size: 0.8125rem; font-weight: 700; color: var(--text-primary);">Application Base APK</span>
-        <span class="badge ${baseApkUrl ? 'badge-accent' : ''}" style="font-size: 0.625rem; font-weight: 600;">
-          ${baseApkUrl ? 'Custom APK Configured' : 'Auto-Fetch APKPure'}
-        </span>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.375rem; margin-bottom: 0.625rem;">
-        <button type="button" class="btn btn-secondary btn-sm btn-base-apk-mode ${currentDrawerBaseApkMode === 'auto' ? 'active' : ''}" data-mode="auto" onclick="setDrawerBaseApkMode('auto')" style="font-size: 0.6875rem; padding: 0.35rem 0.25rem; justify-content: center;">
-          ☁️ Auto-Fetch
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm btn-base-apk-mode ${currentDrawerBaseApkMode === 'custom' ? 'active' : ''}" data-mode="custom" onclick="setDrawerBaseApkMode('custom')" style="font-size: 0.6875rem; padding: 0.35rem 0.25rem; justify-content: center;">
-          🔗 Custom URL
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm btn-base-apk-mode ${currentDrawerBaseApkMode === 'upload' ? 'active' : ''}" data-mode="upload" onclick="setDrawerBaseApkMode('upload')" style="font-size: 0.6875rem; padding: 0.35rem 0.25rem; justify-content: center;">
-          📁 Upload APK
-        </button>
-      </div>
-
-      <!-- Mode 1: Auto-Fetch -->
-      <div id="drawer-base-apk-auto" style="display: ${currentDrawerBaseApkMode === 'auto' ? 'block' : 'none'}; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
-        <span>MorpheFlow automatically fetches clean base APK from upstream (Target: <strong style="color: var(--accent-base);">${escapeHtml(recVer)}</strong>) during compilation.</span>
-      </div>
-
-      <!-- Mode 2: Custom URL -->
-      <div id="drawer-base-apk-custom" style="display: ${currentDrawerBaseApkMode === 'custom' ? 'block' : 'none'};">
-        <p style="font-size: 0.6875rem; color: var(--text-muted); margin-bottom: 0.375rem;">Direct download link (Google Drive, Dropbox, Catbox, CDN):</p>
-        <div style="display: flex; gap: 0.375rem;">
-          <input type="url" id="drawer-base-apk-url" class="form-input" style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem;" placeholder="https://example.com/base.apk" value="${escapeHtml(baseApkUrl)}">
-          <button class="btn btn-secondary btn-sm" onclick="saveCustomApkUrl('${escapeHtml(pkg)}')">Save</button>
-        </div>
-      </div>
-
-      <!-- Mode 3: Upload APK -->
-      <div id="drawer-base-apk-upload" style="display: ${currentDrawerBaseApkMode === 'upload' ? 'block' : 'none'};">
-        <div class="apk-dropzone" onclick="document.getElementById('drawer-apk-file-input').click()" style="padding: 0.75rem; text-align: center; cursor: pointer; border: 1px dashed var(--border-medium); border-radius: var(--radius-sm); background: var(--surface-raised);">
-          <img src="/apk-icon.png" alt="" width="32" height="32" style="width: 32px; height: 32px; margin-bottom: 0.375rem;" />
-          <span style="font-size: 0.75rem; font-weight: 500; display: block;">Select Local Base APK (.apk)</span>
-          <span style="font-size: 0.625rem; color: var(--text-muted);" id="drawer-apk-upload-status">Supported: Android ARM64 APK</span>
-          <input type="file" id="drawer-apk-file-input" accept=".apk" style="display: none;" onchange="handleCustomApkFileSelected('${escapeHtml(pkg)}', this.files[0])">
-        </div>
-        <div id="drawer-apk-progress-container" class="upload-progress-container" style="display: none; margin-top: 0.5rem;">
-          <div class="upload-progress-track"><div class="upload-progress-fill" id="drawer-apk-progress-bar"></div></div>
-          <span id="drawer-apk-progress-status-text" style="font-size: 0.6875rem;">Uploading…</span>
-        </div>
-      </div>
-    </div>
+    <!-- Upstream Base APK Source Provider & Verifier -->
+    ${renderBaseApkSourceCard(pkg, src, recVer)}
 
     <!-- Patch Sources & Add Source Link (Collapsible Dropdown, Collapsed by Default) -->
     <details class="bundle-repos-collapsible" id="drawer-repos-collapsible" style="background: var(--surface-sunken); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); margin-bottom: 0.875rem; overflow: hidden;">
@@ -5995,6 +6041,9 @@ window.loadKeystoreStatus = loadKeystoreStatus;
 window.setObtainiumSourceMode = setObtainiumSourceMode;
 window.renderOverview = renderOverview;
 window.renderConfiguredApps = renderConfiguredApps;
+window.onDrawerSourceTypeChanged = onDrawerSourceTypeChanged;
+window.verifyDrawerSource = verifyDrawerSource;
+window.saveDrawerSource = saveDrawerSource;
 
 // ---------------------------------------------------------------------------
 // Config Backup & Restore Handlers
@@ -6128,6 +6177,140 @@ async function handleCustomApkFileSelected(pkg, file) {
   }
 }
 
+
+async function onDrawerSourceTypeChanged() {
+  const select = document.getElementById('drawer-app-source-type');
+  if (!select) return;
+  const val = select.value;
+  const githubFields = document.getElementById('drawer-source-fields-github');
+  const directFields = document.getElementById('drawer-source-fields-direct');
+  const autoFields = document.getElementById('drawer-source-fields-auto');
+
+  if (githubFields) githubFields.style.display = (val === 'github') ? 'block' : 'none';
+  if (directFields) directFields.style.display = (val === 'direct') ? 'block' : 'none';
+  if (autoFields) autoFields.style.display = (val === 'github' || val === 'direct') ? 'none' : 'block';
+
+  const statusEl = document.getElementById('drawer-source-verify-status');
+  if (statusEl) statusEl.style.display = 'none';
+}
+
+async function verifyDrawerSource(pkg) {
+  const statusEl = document.getElementById('drawer-source-verify-status');
+  const typeSelect = document.getElementById('drawer-app-source-type');
+  const repoInput = document.getElementById('drawer-source-repo');
+  const patternInput = document.getElementById('drawer-source-pattern');
+  const urlInput = document.getElementById('drawer-source-url');
+
+  const type = typeSelect ? typeSelect.value : 'auto';
+  const repo = repoInput ? repoInput.value.trim() : '';
+  const pattern = patternInput ? patternInput.value.trim() : '';
+  const directUrl = urlInput ? urlInput.value.trim() : '';
+
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.className = 'status-badge-panel probing';
+    statusEl.innerHTML = `<span style="display: inline-flex; align-items: center; gap: 0.375rem;"><span class="spinner-sm"></span> Probing ${escapeHtml(type)} source for <code>${escapeHtml(pkg)}</code>...</span>`;
+  }
+
+  try {
+    const res = await fetch('/api/source/probe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package: pkg,
+        type,
+        repo,
+        pattern,
+        url: directUrl,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      if (statusEl) {
+        statusEl.className = 'status-badge-panel success';
+        let dlLinkHtml = '';
+        if (data.download_url) {
+          dlLinkHtml = `<a href="${escapeHtml(data.download_url)}" target="_blank" rel="noopener" class="btn-micro" style="margin-left: 0.5rem; text-decoration: none;">🔗 Test Link</a>`;
+        }
+        statusEl.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem;">
+            <span><strong style="color: var(--status-success);">✓ Verified:</strong> ${escapeHtml(data.status_text)}</span>
+            ${dlLinkHtml}
+          </div>
+        `;
+      }
+      showToast('Base APK source verified successfully!', 'success');
+      // Automatically save verified source configuration
+      await saveDrawerSource(pkg, false);
+    } else {
+      if (statusEl) {
+        statusEl.className = 'status-badge-panel error';
+        statusEl.innerHTML = `
+          <div>
+            <strong style="color: var(--status-error);">✗ Verification Failed:</strong> ${escapeHtml(data.status_text || data.error || 'Source probe failed')}
+            <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: 0.25rem;">
+              💡 Suggestion: Ensure package name is correct, or try selecting APKMirror / GitHub Releases directly.
+            </div>
+          </div>
+        `;
+      }
+      showToast(data.status_text || 'Source verification failed', 'error');
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.className = 'status-badge-panel error';
+      statusEl.innerHTML = `<strong style="color: var(--status-error);">✗ Error:</strong> ${escapeHtml(err.message)}`;
+    }
+    showToast(`Verification error: ${err.message}`, 'error');
+  }
+}
+
+async function saveDrawerSource(pkg, notify = true) {
+  const typeSelect = document.getElementById('drawer-app-source-type');
+  const repoInput = document.getElementById('drawer-source-repo');
+  const patternInput = document.getElementById('drawer-source-pattern');
+  const urlInput = document.getElementById('drawer-source-url');
+
+  const type = typeSelect ? typeSelect.value : 'auto';
+  const repo = repoInput ? repoInput.value.trim() : null;
+  const pattern = patternInput ? patternInput.value.trim() : null;
+  const directUrl = urlInput ? urlInput.value.trim() : null;
+
+  try {
+    const res = await fetch(`/api/app_sources/${encodeURIComponent(pkg)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package: pkg,
+        type,
+        repo,
+        asset_pattern: pattern,
+        url: directUrl,
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const resData = await res.json();
+    if (!state.appSources) state.appSources = {};
+    state.appSources[pkg] = resData.source || { package: pkg, type, repo, asset_pattern: pattern, url: directUrl };
+
+    // Also update base_apk_url on package options for backwards compatibility
+    if (directUrl) {
+      await fetch('/api/config/app/base-apk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: pkg, base_apk_url: directUrl }),
+      }).catch(() => {});
+    }
+
+    if (notify) {
+      showToast(`Base APK source configuration saved for ${pkg}!`, 'success');
+    }
+  } catch (err) {
+    if (notify) {
+      showToast(`Failed to save base APK source: ${err.message}`, 'error');
+    }
+  }
+}
 
 async function toggleAppActive(pkg, isChecked) {
   try {

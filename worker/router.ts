@@ -3,7 +3,18 @@
  * Implements the full REST and SSE API contract for MorpheFlow Web Portal.
  */
 
-import { EmailSettings, Env, PackageRecord, PatchedAppRecord, RunHistoryRecord, StatusResponse, SystemSettings } from './types';
+import {
+  EmailSettings,
+  Env,
+  PackageRecord,
+  PatchedAppRecord,
+  RunHistoryRecord,
+  StatusResponse,
+  SystemSettings,
+  AppSourceRecord,
+  ProbeSourceResult,
+  AppSourceType,
+} from './types';
 import { StorageService, formatBytes } from './storage';
 import {
   authenticateRequest,
@@ -237,6 +248,336 @@ function attachLastResultsToPackages(
       last_result,
     };
   });
+}
+
+async function probeSource(
+  pkg: string,
+  type: string,
+  repo?: string | null,
+  pattern?: string | null,
+  targetUrl?: string | null,
+  env?: Env
+): Promise<ProbeSourceResult> {
+  const normType = (type || 'auto').toLowerCase();
+
+  if (normType === 'github') {
+    let cleanRepo = (repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+    if (!cleanRepo || !cleanRepo.includes('/')) {
+      return {
+        ok: false,
+        type: 'github',
+        package: pkg,
+        status_text: 'Invalid GitHub repository format (expected owner/repo)',
+        error: 'Invalid repository format',
+      };
+    }
+    const headers: Record<string, string> = {
+      'User-Agent': 'MorpheFlow-Edge-Probe/1.0',
+      'Accept': 'application/vnd.github.v3+json',
+    };
+    if (env?.GITHUB_TOKEN) {
+      headers['Authorization'] = `token ${env.GITHUB_TOKEN}`;
+    }
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${cleanRepo}/releases?per_page=5`, {
+        headers,
+      });
+      if (!resp.ok) {
+        return {
+          ok: false,
+          type: 'github',
+          package: pkg,
+          status_text: `GitHub API returned HTTP ${resp.status} (${resp.statusText}) for ${cleanRepo}`,
+          error: `HTTP ${resp.status}`,
+        };
+      }
+      const releases = (await resp.json()) as any[];
+      if (!Array.isArray(releases) || releases.length === 0) {
+        return {
+          ok: false,
+          type: 'github',
+          package: pkg,
+          status_text: `No releases found in ${cleanRepo}`,
+          error: 'No releases',
+        };
+      }
+
+      const patStr = pattern && pattern.trim() ? pattern.trim() : '\\.apk$';
+      const regex = new RegExp(patStr, 'i');
+
+      for (const rel of releases) {
+        const assets = rel.assets || [];
+        for (const asset of assets) {
+          if (regex.test(asset.name)) {
+            const size = asset.size || 0;
+            return {
+              ok: true,
+              type: 'github',
+              package: pkg,
+              version: rel.tag_name,
+              filename: asset.name,
+              size_bytes: size,
+              formatted_size: formatBytes(size),
+              download_url: asset.browser_download_url,
+              status_text: `Verified: Found release ${rel.tag_name} (${asset.name}, ${formatBytes(size)}) on ${cleanRepo}`,
+            };
+          }
+        }
+      }
+      return {
+        ok: false,
+        type: 'github',
+        package: pkg,
+        status_text: `Found ${releases.length} releases in ${cleanRepo}, but no assets matched pattern: ${patStr}`,
+        error: 'Asset pattern mismatch',
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        type: 'github',
+        package: pkg,
+        status_text: `GitHub probe error: ${e.message}`,
+        error: e.message,
+      };
+    }
+  }
+
+  if (normType === 'direct') {
+    const rawUrl = (targetUrl || '').trim();
+    if (!rawUrl || !rawUrl.startsWith('http')) {
+      return {
+        ok: false,
+        type: 'direct',
+        package: pkg,
+        status_text: 'Direct download URL must be a valid HTTP/HTTPS link',
+        error: 'Invalid URL',
+      };
+    }
+    try {
+      let resp = await fetch(rawUrl, {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'curl/8.0.1' },
+        redirect: 'follow',
+      });
+      if (resp.status === 405 || resp.status === 501) {
+        resp = await fetch(rawUrl, {
+          method: 'GET',
+          headers: { 'User-Agent': 'curl/8.0.1', Range: 'bytes=0-1023' },
+          redirect: 'follow',
+        });
+      }
+      if (!resp.ok) {
+        return {
+          ok: false,
+          type: 'direct',
+          package: pkg,
+          status_text: `Direct URL returned HTTP ${resp.status} (${resp.statusText})`,
+          error: `HTTP ${resp.status}`,
+        };
+      }
+      const cLength = parseInt(resp.headers.get('content-length') || '0', 10);
+      let filename = `${pkg}.apk`;
+      try {
+        const parsed = new URL(rawUrl);
+        const lastPart = parsed.pathname.split('/').filter(Boolean).pop();
+        if (lastPart && lastPart.toLowerCase().endsWith('.apk')) {
+          filename = lastPart;
+        }
+      } catch {}
+      return {
+        ok: true,
+        type: 'direct',
+        package: pkg,
+        filename,
+        size_bytes: cLength,
+        formatted_size: formatBytes(cLength),
+        download_url: rawUrl,
+        status_text: `Verified: Direct download reachable${cLength > 0 ? ` (${formatBytes(cLength)})` : ''}`,
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        type: 'direct',
+        package: pkg,
+        status_text: `Direct URL check failed: ${e.message}`,
+        error: e.message,
+      };
+    }
+  }
+
+  if (normType === 'google_play') {
+    try {
+      const gplayUrl = `https://play.google.com/store/apps/details?id=${encodeURIComponent(pkg)}&hl=en`;
+      const resp = await fetch(gplayUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+      if (resp.status === 200) {
+        return {
+          ok: true,
+          type: 'google_play',
+          package: pkg,
+          download_url: gplayUrl,
+          status_text: 'Verified: Available on Google Play Store (Aurora Store / goopdl ready)',
+        };
+      }
+      return {
+        ok: false,
+        type: 'google_play',
+        package: pkg,
+        status_text: `Not found on Google Play Store (HTTP ${resp.status}). App may be unlisted, region-locked, or sideload-only.`,
+        error: `HTTP ${resp.status}`,
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        type: 'google_play',
+        package: pkg,
+        status_text: `Google Play check failed: ${e.message}`,
+        error: e.message,
+      };
+    }
+  }
+
+  if (normType === 'apkmirror') {
+    try {
+      const apiResp = await fetch('https://www.apkmirror.com/wp-json/apkm/v1/app_exists/', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Basic YXBpLWFwa3VwZGF0ZXI6cm01cmNmcnVVakt5MDRzTXB5TVBKWFc4',
+          'User-Agent': 'Obtainium/1.0.0 (+https://github.com/ImranR98/Obtainium)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `pnames=${encodeURIComponent(pkg)}`,
+      });
+      if (apiResp.ok) {
+        const data = (await apiResp.json()) as any;
+        const appData = data?.data?.[pkg];
+        if (appData && appData.exists) {
+          const ver = appData.release?.version || null;
+          const link = appData.app?.link ? `https://www.apkmirror.com${appData.app.link}` : null;
+          return {
+            ok: true,
+            type: 'apkmirror',
+            package: pkg,
+            version: ver,
+            download_url: link,
+            status_text: `Verified: Available on APKMirror${ver ? ` (v${ver})` : ''}`,
+          };
+        }
+      }
+      const webUrl = `https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(pkg)}`;
+      const webResp = await fetch(webUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+        },
+      });
+      if (webResp.ok) {
+        return {
+          ok: true,
+          type: 'apkmirror',
+          package: pkg,
+          download_url: webUrl,
+          status_text: 'Verified: APKMirror search results found for package',
+        };
+      }
+      return {
+        ok: false,
+        type: 'apkmirror',
+        package: pkg,
+        status_text: 'Package not found on APKMirror',
+        error: 'Not found',
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        type: 'apkmirror',
+        package: pkg,
+        status_text: `APKMirror check failed: ${e.message}`,
+        error: e.message,
+      };
+    }
+  }
+
+  if (normType === 'apkpure') {
+    try {
+      const resp = await fetch(
+        `https://api.pureapk.com/m/v3/cms/app_version?package_name=${encodeURIComponent(pkg)}`,
+        {
+          headers: {
+            'User-Agent': 'Apkpure/3.20.0 (Linux; Android 14)',
+            'x-sv': '34',
+          },
+        }
+      );
+      if (resp.ok) {
+        const data = (await resp.json()) as any;
+        const matched = data?.matched_version || data?.response?.matched_version;
+        if (matched && matched.version_name) {
+          return {
+            ok: true,
+            type: 'apkpure',
+            package: pkg,
+            version: matched.version_name,
+            status_text: `Verified: Available on APKPure (v${matched.version_name})`,
+          };
+        }
+      }
+      return {
+        ok: false,
+        type: 'apkpure',
+        package: pkg,
+        status_text: 'Package not found on APKPure direct API',
+        error: 'Not found',
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        type: 'apkpure',
+        package: pkg,
+        status_text: `APKPure check failed: ${e.message}`,
+        error: e.message,
+      };
+    }
+  }
+
+  // AUTO mode: probe Google Play -> APKMirror -> APKPure
+  const gplayRes = await probeSource(pkg, 'google_play', null, null, null, env);
+  if (gplayRes.ok) {
+    return {
+      ...gplayRes,
+      type: 'auto',
+      status_text: 'Verified: Auto-detected via Google Play Store (Aurora Store ready)',
+    };
+  }
+  const mirrorRes = await probeSource(pkg, 'apkmirror', null, null, null, env);
+  if (mirrorRes.ok) {
+    return {
+      ...mirrorRes,
+      type: 'auto',
+      status_text: 'Verified: Auto-detected via APKMirror',
+    };
+  }
+  const pureRes = await probeSource(pkg, 'apkpure', null, null, null, env);
+  if (pureRes.ok) {
+    return {
+      ...pureRes,
+      type: 'auto',
+      status_text: 'Verified: Auto-detected via APKPure',
+    };
+  }
+
+  return {
+    ok: false,
+    type: 'auto',
+    package: pkg,
+    status_text: 'No upstream source auto-detected. Specify a GitHub repo, APKMirror slug, or Direct URL.',
+    error: 'No source detected',
+  };
 }
 
 export async function handleApiRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -555,6 +896,7 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
     const system = (await storage.getConfig('system')) || {};
     const email = (await storage.getConfig('email')) || {};
     const tunnels = (await storage.getConfig('tunnels')) || {};
+    const appSources = await storage.getAppSources();
 
     return json({
       ...system,
@@ -562,6 +904,7 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
       tunnels,
       patch_repos: repos,
       packages,
+      app_sources: appSources,
     });
   }
 
@@ -654,6 +997,7 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
     const tunnels = (await storage.getConfig('tunnels')) || {};
     const repoVersions = (await storage.getConfig('repo_versions')) || {};
     const keystore = (await storage.getKeystore()) || { has_custom: false };
+    const appSources = await storage.getAppSources();
 
     return json({
       config: {
@@ -662,10 +1006,12 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
         tunnels,
         patch_repos: repos,
         packages,
+        app_sources: appSources,
       },
       patched_apps: patchedApps,
       repo_versions: repoVersions,
       keystore,
+      app_sources: appSources,
     });
   }
 
@@ -1000,6 +1346,77 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
       status: 'success',
       message: 'Reset back to MorpheFlow default deterministic keystore.',
     });
+  }
+
+  // 8f. Live Upstream Source Probe: GET or POST /api/source/probe
+  if (path === '/api/source/probe' && (method === 'GET' || method === 'POST')) {
+    let pkg = '';
+    let type = 'auto';
+    let repo = '';
+    let pattern = '';
+    let directUrl = '';
+
+    if (method === 'POST') {
+      const body = await request.json<any>().catch(() => ({}));
+      pkg = body.package || body.pkg || '';
+      type = body.type || 'auto';
+      repo = body.repo || '';
+      pattern = body.pattern || body.asset_pattern || '';
+      directUrl = body.url || body.download_url || '';
+    } else {
+      pkg = url.searchParams.get('package') || url.searchParams.get('pkg') || '';
+      type = url.searchParams.get('type') || 'auto';
+      repo = url.searchParams.get('repo') || '';
+      pattern = url.searchParams.get('pattern') || url.searchParams.get('asset_pattern') || '';
+      directUrl = url.searchParams.get('url') || '';
+    }
+
+    if (!pkg) {
+      return json({ ok: false, error: 'Package name (pkg) is required', status_text: 'Package name is required' }, 400);
+    }
+
+    const result = await probeSource(pkg, type, repo, pattern, directUrl, env);
+    return json(result, result.ok ? 200 : 422);
+  }
+
+  // 8g. App Sources CRUD: GET /api/app_sources
+  if (path === '/api/app_sources' && method === 'GET') {
+    const sources = await storage.getAppSources();
+    return json(sources);
+  }
+
+  // 8h. App Sources By Package: GET, POST, DELETE /api/app_sources/:package
+  if (path.startsWith('/api/app_sources/') && method === 'GET') {
+    const pkg = decodeURIComponent(path.replace('/api/app_sources/', '')).trim();
+    const source = await storage.getAppSource(pkg);
+    return json(source || { package: pkg, type: 'auto' });
+  }
+
+  if ((path.startsWith('/api/app_sources/') || path === '/api/app_sources') && method === 'POST') {
+    const body = await request.json<any>().catch(() => ({}));
+    const pkg = (path.startsWith('/api/app_sources/') ? decodeURIComponent(path.replace('/api/app_sources/', '')) : body.package || '').trim();
+    if (!pkg) {
+      return json({ error: 'Package identifier is required' }, 400);
+    }
+    const record: AppSourceRecord = {
+      package: pkg,
+      type: body.type || 'auto',
+      repo: body.repo || null,
+      asset_pattern: body.asset_pattern || body.pattern || null,
+      version: body.version || 'most_recent',
+      arch: body.arch || null,
+      url: body.url || null,
+    };
+    await storage.setAppSource(record);
+    return json({ status: 'success', source: record });
+  }
+
+  if (path.startsWith('/api/app_sources/') && method === 'DELETE') {
+    const pkg = decodeURIComponent(path.replace('/api/app_sources/', '')).trim();
+    if (pkg) {
+      await storage.deleteAppSource(pkg);
+    }
+    return json({ status: 'success', package: pkg });
   }
 
   // 9. Packages: POST /api/config/app

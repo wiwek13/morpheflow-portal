@@ -104,6 +104,31 @@ export interface StorageStats {
   formatted_size: string;
 }
 
+export type AppSourceType = 'auto' | 'github' | 'google_play' | 'apkmirror' | 'apkpure' | 'direct';
+
+export interface AppSourceRecord {
+  package: string;
+  type: AppSourceType;
+  repo?: string | null;
+  asset_pattern?: string | null;
+  version?: string | null;
+  arch?: string | null;
+  url?: string | null;
+}
+
+export interface ProbeSourceResult {
+  ok: boolean;
+  type: string;
+  package: string;
+  version?: string | null;
+  filename?: string | null;
+  size_bytes?: number;
+  formatted_size?: string;
+  download_url?: string | null;
+  status_text: string;
+  error?: string | null;
+}
+
 export interface StatusResponse {
   is_running: boolean;
   active_locks?: Record<string, any>[];

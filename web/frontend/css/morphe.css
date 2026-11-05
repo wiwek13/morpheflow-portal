@@ -648,6 +648,36 @@ a {
   border: 1px solid var(--status-danger-border);
 }
 
+/* Upstream Source Verification Panel */
+.status-badge-panel {
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin-top: 0.5rem;
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-sunken);
+  transition: all var(--dur-fast) ease;
+}
+
+.status-badge-panel.probing {
+  border-color: var(--accent-base);
+  color: var(--text-primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.status-badge-panel.success {
+  border-color: rgba(16, 185, 129, 0.4);
+  color: var(--status-success);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.status-badge-panel.error {
+  border-color: rgba(244, 63, 94, 0.4);
+  color: var(--color-danger, #f43f5e);
+  background: rgba(244, 63, 94, 0.08);
+}
+
 .app-pkg-meta {
   font-size: 0.75rem;
   font-family: var(--font-mono);

@@ -12,6 +12,7 @@ import {
   SystemSettings,
   EmailSettings,
   KeystoreSettings,
+  AppSourceRecord,
 } from './types';
 
 export function formatBytes(bytes: number): string {
@@ -671,5 +672,72 @@ export class StorageService {
       .bind(String(now), now, String(now), now)
       .run();
     return now;
+  }
+
+  // --- App Sources Management ---
+  async getAppSources(): Promise<Record<string, AppSourceRecord>> {
+    const { results } = await this.db.prepare('SELECT * FROM app_sources').all();
+    const map: Record<string, AppSourceRecord> = {};
+    for (const row of (results || []) as any[]) {
+      map[row.package] = {
+        package: row.package,
+        type: row.type || 'auto',
+        repo: row.repo || null,
+        asset_pattern: row.asset_pattern || null,
+        version: row.version || null,
+        arch: row.arch || null,
+        url: row.url || null,
+      };
+    }
+    return map;
+  }
+
+  async getAppSource(pkg: string): Promise<AppSourceRecord | null> {
+    const row = await this.db
+      .prepare('SELECT * FROM app_sources WHERE package = ?')
+      .bind(pkg)
+      .first<any>();
+    if (!row) return null;
+    return {
+      package: row.package,
+      type: row.type || 'auto',
+      repo: row.repo || null,
+      asset_pattern: row.asset_pattern || null,
+      version: row.version || null,
+      arch: row.arch || null,
+      url: row.url || null,
+    };
+  }
+
+  async setAppSource(source: AppSourceRecord): Promise<void> {
+    await this.db
+      .prepare(`
+        INSERT INTO app_sources (package, type, repo, asset_pattern, version, arch, url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(package) DO UPDATE SET
+          type = excluded.type,
+          repo = excluded.repo,
+          asset_pattern = excluded.asset_pattern,
+          version = excluded.version,
+          arch = excluded.arch,
+          url = excluded.url
+      `)
+      .bind(
+        source.package,
+        source.type,
+        source.repo || null,
+        source.asset_pattern || null,
+        source.version || 'most_recent',
+        source.arch || null,
+        source.url || null
+      )
+      .run();
+  }
+
+  async deleteAppSource(pkg: string): Promise<void> {
+    await this.db
+      .prepare('DELETE FROM app_sources WHERE package = ?')
+      .bind(pkg)
+      .run();
   }
 }

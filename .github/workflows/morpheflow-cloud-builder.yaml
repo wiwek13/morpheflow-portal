@@ -268,52 +268,34 @@ jobs:
               if [ "$pkg_dir" = "com.spocky.projengmenu" ]; then app_name="Projectivy Launcher"; fi
               
               PER_APP_TAG="app-${pkg_dir}"
-              OBTAINIUM_URL=$(python3 scripts/obtainium_link.py --pkg "${pkg_dir}" --name "${app_name}" --repo "${REPO}")
-              
-              # Calculate sha256
-              SHA256=$(sha256sum "$apk" | awk '{print $1}')
-              VT_URL="https://www.virustotal.com/gui/file/${SHA256}"
-              
-              echo "[*] Publishing clean canonical release for ${app_name}: ${PER_APP_TAG}"
               PER_APP_NOTES="/tmp/per_app_notes_${pkg_dir}.md"
-              {
-                echo "# ${app_name} (\`${pkg_dir}\`) v${ver_dir}"
-                echo ""
-                echo "Latest patched build for **${app_name}** (\`${pkg_dir}\`) version \`${ver_dir}\`."
-                echo ""
-                echo "### 📦 Asset Details"
-                echo "- **Binary:** \`${fname}\`"
-                echo "- **Package:** \`${pkg_dir}\`"
-                echo "- **Version:** \`v${ver_dir}\`"
-                echo "- **Architecture:** \`arm64-v8a\`"
-                echo "- **SHA-256:** \`${SHA256}\`"
-                echo "- **VirusTotal Report:** [🛡️ View Scan Analysis](${VT_URL})"
-                echo ""
-                echo "### 📲 Instant 1-Click Install in Obtainium"
-                echo "👉 [**📲 Add to Obtainium**](${OBTAINIUM_URL})"
-                echo ""
-                echo "*(Tapping the button above automatically opens Obtainium with all update filters, version extraction, and fallback rules pre-configured!)*"
-                echo ""
-                echo "### 🔗 Tracking & Downloads"
-                echo "- **Direct Download:** [${fname}](https://github.com/${REPO}/releases/download/${PER_APP_TAG}/${fname})"
-                echo "- **Manual Obtainium Source URL:** \`https://github.com/${REPO}/releases/tag/${PER_APP_TAG}\`"
-                echo "- **Web Portal:** [https://morpheflow.w161112218.workers.dev](https://morpheflow.w161112218.workers.dev)"
-                echo ""
-                echo "> 🔒 **Private Repository Note:** If your repository is private, ensure your GitHub Personal Access Token (PAT) with \`repo\` scope is entered in Obtainium: **Settings** ➔ **App Sources** ➔ **GitHub**."
-              } > "$PER_APP_NOTES"
+              PER_APP_TITLE_FILE="/tmp/per_app_title_${pkg_dir}.txt"
+
+              python3 scripts/generate_release_notes.py \
+                --pkg "${pkg_dir}" \
+                --name "${app_name}" \
+                --version "${ver_dir}" \
+                --apk "$apk" \
+                --repo "${REPO}" \
+                --out-notes "$PER_APP_NOTES" \
+                --out-title "$PER_APP_TITLE_FILE"
+
+              RELEASE_TITLE=$(cat "$PER_APP_TITLE_FILE" 2>/dev/null || echo "${app_name} v${ver_dir}")
+
+              echo "[*] Publishing clean canonical release for ${app_name}: ${PER_APP_TAG} ('${RELEASE_TITLE}')"
 
               if gh release view "${PER_APP_TAG}" -R "${REPO}" >/dev/null 2>&1; then
                 gh release edit "${PER_APP_TAG}" -R "${REPO}" \
-                  --title "${app_name} (${pkg_dir}) v${ver_dir}" \
+                  --title "${RELEASE_TITLE}" \
                   --notes-file "$PER_APP_NOTES"
                 gh release upload "${PER_APP_TAG}" "$apk" -R "${REPO}" --clobber
               else
                 gh release create "${PER_APP_TAG}" "$apk" -R "${REPO}" \
-                  --title "${app_name} (${pkg_dir}) v${ver_dir}" \
+                  --title "${RELEASE_TITLE}" \
                   --notes-file "$PER_APP_NOTES" \
                   --latest=false || gh release upload "${PER_APP_TAG}" "$apk" -R "${REPO}" --clobber
               fi
-              rm -f "$PER_APP_NOTES"
+              rm -f "$PER_APP_NOTES" "$PER_APP_TITLE_FILE"
             done
             
             echo "TAG=app-${pkg_dir}" >> $GITHUB_OUTPUT
