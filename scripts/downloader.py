@@ -478,9 +478,17 @@ class Downloader:
                     inner_names = apk.get_files()
 
                     has_so = any(f.startswith(f"lib/{inner_arch}/") and f.endswith(".so") for f in inner_names)
+                    has_any_so = any(f.startswith("lib/") and f.endswith(".so") for f in inner_names)
+                    has_armeabi = any(f.startswith("lib/armeabi") and f.endswith(".so") for f in inner_names)
 
                     if has_so:
                         logger.info(f" ├── Valid {inner_arch} libs verified in nested {apk_name}.")
+                        return True, None
+                    elif not has_any_so:
+                        logger.info(f" ├── [✓] Universal APK (architecture-independent, no native libs) verified in nested {apk_name}.")
+                        return True, None
+                    elif inner_arch == "arm64-v8a" and has_armeabi:
+                        logger.info(f" ├── [✓] 32-bit ARM (armeabi-v7a compatible with {inner_arch}) verified in nested {apk_name}.")
                         return True, None
             return False, "incorrect_arch_libs"
 
@@ -529,7 +537,7 @@ class Downloader:
     def check_apk(self, apk: Path, arch: str, version_name: str, package_name: str) -> tuple[bool, str | None]:
         arch_result, reason = self.apk_arch(apk, arch)
         if arch_result:
-            version_result, reason = self.apk_version(apk, version_name)
+            version_result, reason = self.apk_version(apk, version_name, package_name)
             if version_result:
                 return True, "success"
         return False, reason
@@ -542,16 +550,24 @@ class Downloader:
                 inner_names = apk_zip.namelist()
 
                 has_so = any(f.startswith(f"lib/{normalised_arch}/") and f.endswith(".so") for f in inner_names)
+                has_any_so = any(f.startswith("lib/") and f.endswith(".so") for f in inner_names)
+                has_armeabi = any(f.startswith("lib/armeabi") and f.endswith(".so") for f in inner_names)
 
                 if has_so:
                     logger.info(f" ├── [✓] Valid {normalised_arch} libs verified in {apk.name}.")
+                    return True, None
+                elif not has_any_so:
+                    logger.info(f" ├── [✓] Universal APK (architecture-independent, no native libs) verified in {apk.name}.")
+                    return True, None
+                elif normalised_arch == "arm64-v8a" and has_armeabi:
+                    logger.info(f" ├── [✓] 32-bit ARM (armeabi-v7a compatible with {normalised_arch}) verified in {apk.name}.")
                     return True, None
                 return False, "no_libs"
 
         except (BadZipFile, OSError):
                 return False, "no_apk"
 
-    def apk_version(self, package: Path, target_version: str) -> tuple[bool, str | None]:
+    def apk_version(self, package: Path, target_version: str, package_name: str | None = None) -> tuple[bool, str | None]:
         detected_version = APK(package).version_name
 
         normalise_detected_version = self.normalise_version_name(detected_version)

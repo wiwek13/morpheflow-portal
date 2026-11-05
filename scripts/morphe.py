@@ -1207,17 +1207,23 @@ class Morphe:
     def check_repo_reqs(self, aliase_details: dict[str, dict[str, tuple[str, tuple[int, ...], str]]], target_version: str) -> set[str]:
         repos = set()
         for aliase, repo_details in aliase_details.items():
-            for repo, (patch_name, version_tuple, version_string) in repo_details.items():
-                if version_string == target_version:
-                    repos.add(repo)
-                    break
+            if not repo_details:
+                continue
+            # First look for a repo that explicitly supports target_version
+            exact_match_repo = next(
+                (repo for repo, (_, _, ver_str) in repo_details.items() if ver_str == target_version),
+                None
+            )
+            if exact_match_repo:
+                repos.add(exact_match_repo)
+            else:
+                # If no exact version match exists, pick the candidate with highest supported version
+                best_candidate = max(repo_details.items(), key=lambda item: item[1][1])
+                chosen_repo = best_candidate[0]
+                if chosen_repo:
+                    repos.add(chosen_repo)
                 else:
-                    best_candidate = max(repo_details.items(), key=lambda item: item[1][1])
-                    chosen_repo = best_candidate[0]
-                    if chosen_repo:
-                        repos.add(chosen_repo)
-                    else:
-                        logger.error(f" └── [!] No repo found for aliase: {aliase}")
+                    logger.error(f" └── [!] No repo found for aliase: {aliase}")
         return repos
 
     def check_repo_per_version(self, aliase_details: dict[str, dict[str, tuple[str, tuple[int, ...], str]]]) -> dict[tuple[int, ...], set[str]]:
