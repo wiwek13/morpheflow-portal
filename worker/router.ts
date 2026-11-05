@@ -442,7 +442,7 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
       if (env.GITHUB_TOKEN) {
         ghHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`;
       }
-      const resp = await fetch('https://api.github.com/repos/MorpheApp/GmsCore/releases/latest', {
+      const resp = await fetch('https://api.github.com/repos/MorpheApp/MicroG-RE/releases/latest', {
         headers: ghHeaders,
         cf: { cacheTtl: 21600, cacheEverything: true },
       });
@@ -452,23 +452,23 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
           ? data.assets.find((a: any) => typeof a.name === 'string' && a.name.endsWith('.apk')) || data.assets[0]
           : null;
         return json({
-          tag_name: data.tag_name || 'v0.3.1.240913',
-          name: data.name || 'MicroG-RE (GmsCore)',
-          apk_name: apkAsset?.name || 'app.revanced.android.gms.apk',
+          tag_name: data.tag_name || '7.3.0',
+          name: data.name || 'MicroG-RE',
+          apk_name: apkAsset?.name || 'microg-7.3.0.apk',
           download_url: '/api/gmscore/download',
           direct_asset_url: apkAsset?.browser_download_url || null,
-          html_url: data.html_url || 'https://github.com/MorpheApp/GmsCore/releases/latest',
+          html_url: data.html_url || 'https://github.com/MorpheApp/MicroG-RE/releases/latest',
           published_at: data.published_at || new Date().toISOString(),
           size_bytes: apkAsset?.size || 0,
         });
       }
     } catch {}
     return json({
-      tag_name: 'v0.3.1.240913',
-      name: 'MicroG-RE (GmsCore)',
-      apk_name: 'app.revanced.android.gms.apk',
+      tag_name: '7.3.0',
+      name: 'MicroG-RE',
+      apk_name: 'microg-7.3.0.apk',
       download_url: '/api/gmscore/download',
-      html_url: 'https://github.com/MorpheApp/GmsCore/releases/latest',
+      html_url: 'https://github.com/MorpheApp/MicroG-RE/releases/latest',
       published_at: '2024-09-13T00:00:00Z',
     });
   }
@@ -482,7 +482,7 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
       if (env.GITHUB_TOKEN) {
         ghHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`;
       }
-      const resp = await fetch('https://api.github.com/repos/MorpheApp/GmsCore/releases/latest', {
+      const resp = await fetch('https://api.github.com/repos/MorpheApp/MicroG-RE/releases/latest', {
         headers: ghHeaders,
       });
       if (resp.ok) {
@@ -495,7 +495,7 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
         }
       }
     } catch {}
-    return Response.redirect('https://github.com/MorpheApp/GmsCore/releases/latest', 302);
+    return Response.redirect('https://github.com/MorpheApp/MicroG-RE/releases/latest', 302);
   }
 
   // 2. GET /api/status

@@ -12,8 +12,8 @@ test('MicroG-RE Hub: Endpoints are defined and publicly accessible without authe
     'Router must exempt /api/gmscore/latest and /api/gmscore/download from authentication'
   );
   assert.ok(
-    router.includes("https://api.github.com/repos/MorpheApp/GmsCore/releases/latest"),
-    'Router must proxy upstream MorpheApp/GmsCore releases'
+    router.includes("https://api.github.com/repos/MorpheApp/MicroG-RE/releases/latest"),
+    'Router must proxy upstream MorpheApp/MicroG-RE releases'
   );
   assert.ok(
     router.includes("Response.redirect(apkAsset.browser_download_url, 302)"),
