@@ -5551,7 +5551,7 @@ function buildObtainiumAppPayload(pkg, mode = obtainiumSourceMode) {
   if (mode === 'edge') {
     const origin = window.location.origin;
     const additionalSettings = JSON.stringify({
-      versionExtractionRegEx: 'id="version"[^>]*>v?([0-9][0-9a-zA-Z._-]+)<',
+      versionExtractionRegEx: '_([0-9]+(?:\\.[0-9]+)*(?:-[a-zA-Z0-9.]+)*)(?:_[v0-9.]+)?_patched\\.apk',
       matchGroupToUse: '1',
       apkFilterRegEx: '\\.apk$',
       autoCheckForUpdates: true
@@ -5559,7 +5559,7 @@ function buildObtainiumAppPayload(pkg, mode = obtainiumSourceMode) {
 
     return {
       id: pkg,
-      url: `${origin}/obtainium/${encodeURIComponent(pkg)}`,
+      url: `${origin}/obtainium/${encodeURIComponent(pkg)}?format=html`,
       author: 'MorpheFlow',
       name: appName,
       preferredApkIndex: 0,

@@ -1110,9 +1110,14 @@ export async function handleApiRequest(request: Request, env: Env, ctx: Executio
       return Response.redirect(`https://${url.host}/api/download/${encodeURIComponent(pkg)}`, 302);
     }
 
-    const acceptsHtml =
-      request.headers.get('Accept')?.includes('text/html') ||
-      url.searchParams.get('format') === 'html';
+    const isApiRoute = path.startsWith('/api/obtainium/');
+    const wantsJson =
+      url.searchParams.get('format') === 'json' ||
+      (isApiRoute &&
+        url.searchParams.get('format') !== 'html' &&
+        !request.headers.get('Accept')?.includes('text/html'));
+
+    const acceptsHtml = !wantsJson;
 
     if (acceptsHtml) {
       const isCompiled = Boolean(patched);
