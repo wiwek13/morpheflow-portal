@@ -2,14 +2,6 @@ name: Build and Publish Docker Image
 
 on:
   push:
-    branches:
-      - main
-      - dev
-    paths:
-      - 'Dockerfile'
-      - 'web/**'
-      - 'requirements.txt'
-      - '.github/workflows/docker-publish.yaml'
     tags:
       - 'v*.*.*'
   workflow_dispatch:
