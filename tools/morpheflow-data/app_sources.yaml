@@ -54,6 +54,13 @@ LocalDream_armv8a_3.0.0-alpha.3.apk:
   repo: xororz/local-dream
   asset_pattern: 'LocalDream_armv8a_.*\.apk$'
 
+# Projectivy Launcher
+com.spocky.projengmenu:
+  type: github
+  repo: spocky/miproja1
+  asset_pattern: '^ProjectivyLauncher-.*\.apk$'
+  version: most_recent
+
   org.cygnusx1.continuum:
     type: github
     repo: cygnusx-1-org/continuum

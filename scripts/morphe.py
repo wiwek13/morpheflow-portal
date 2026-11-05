@@ -54,10 +54,8 @@ class Morphe:
         self.repo_versions_json = self.state_dir / "repo_versions.json"
         self.options_checksum_json = self.state_dir / "options_checksum.json"
 
-        self.keystore_alias = os.getenv("MORPHEFLOW_KEYSTORE_ALIAS") or os.getenv("AUTOMORPH_KEYSTORE_ALIAS", "morpheflow")
-        self.keystore_password = os.getenv("MORPHEFLOW_KEYSTORE_PASSWORD") or os.getenv("AUTOMORPH_KEYSTORE_PASSWORD", "morpheflow")
-        self.keystore_entry_password = os.getenv("MORPHEFLOW_KEYSTORE_ENTRY_PASSWORD") or os.getenv("AUTOMORPH_KEYSTORE_ENTRY_PASSWORD", "morpheflow")
         self.keystore_path = self._resolve_keystore()
+        self._init_keystore_credentials()
 
         self.java_bin = "java"
         if shutil.which("/opt/homebrew/opt/openjdk/bin/java"):
@@ -136,6 +134,64 @@ class Morphe:
             logger.warning(f"[!] Could not run keytool to pre-generate keystore ({e}). Morphe CLI will create it on patch execution.")
 
         return target_path
+
+    def _test_keystore_password(self, keystore_path: Path, password: str) -> bool:
+        if not keystore_path or not keystore_path.is_file():
+            return False
+        try:
+            r = subprocess.run(
+                ["keytool", "-list", "-keystore", str(keystore_path), "-storepass", password],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            return r.returncode == 0
+        except Exception:
+            return False
+
+    def _detect_keystore_alias(self, keystore_path: Path, password: str) -> str | None:
+        if not keystore_path or not keystore_path.is_file():
+            return None
+        try:
+            r = subprocess.run(
+                ["keytool", "-list", "-keystore", str(keystore_path), "-storepass", password],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if r.returncode == 0:
+                for line in r.stdout.splitlines():
+                    if "PrivateKeyEntry" in line:
+                        return line.split(",")[0].strip()
+        except Exception:
+            pass
+        return None
+
+    def _init_keystore_credentials(self) -> None:
+        explicit_alias = os.getenv("MORPHEFLOW_KEYSTORE_ALIAS") or os.getenv("AUTOMORPH_KEYSTORE_ALIAS")
+        explicit_pass = os.getenv("MORPHEFLOW_KEYSTORE_PASSWORD") or os.getenv("AUTOMORPH_KEYSTORE_PASSWORD")
+        explicit_entry_pass = os.getenv("MORPHEFLOW_KEYSTORE_ENTRY_PASSWORD") or os.getenv("AUTOMORPH_KEYSTORE_ENTRY_PASSWORD")
+
+        if explicit_pass:
+            pw = explicit_pass
+        elif self._test_keystore_password(self.keystore_path, "automorph"):
+            pw = "automorph"
+        elif self._test_keystore_password(self.keystore_path, "morpheflow"):
+            pw = "morpheflow"
+        else:
+            pw = "automorph"
+
+        if explicit_alias:
+            alias = explicit_alias
+        else:
+            alias = self._detect_keystore_alias(self.keystore_path, pw) or ("automorph" if pw == "automorph" else "morpheflow")
+
+        entry_pw = explicit_entry_pass or pw
+
+        self.keystore_alias = alias
+        self.keystore_password = pw
+        self.keystore_entry_password = entry_pw
+        logger.info(f"[*] Keystore credentials initialized (alias: '{alias}')")
 
     def get_cached_repo(self, repo: str) -> Path | None:
         if repo not in self.repo_details:

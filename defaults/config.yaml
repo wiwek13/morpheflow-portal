@@ -31,6 +31,13 @@ packages:
     repos:
       - https://github.com/drappula/morphe-patches-instaprime
 
+  - package: com.spocky.projengmenu
+    package_name: Projectivy Launcher
+    repos:
+      - https://gitlab.com/johninnld/nl-morphe-patches
+      - https://github.com/saieshshirodkar/saiesh-morphe-patches
+      - https://github.com/hxreborn/morphe-patches
+
 
 
 # ---------------------------------------------------------------------------
